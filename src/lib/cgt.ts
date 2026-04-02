@@ -1,6 +1,14 @@
 import { v4 as uuidv4 } from "uuid"
 import type { EntityType, Parcel, ParcelUsage, Disposal } from "./types"
 
+// ── Date formatting ─────────────────────────────────────────────────
+
+/** Converts ISO date string "YYYY-MM-DD" to UK format "DD/MM/YYYY" */
+export function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split("-")
+  return `${d}/${m}/${y}`
+}
+
 // ── Cost base & proceeds ────────────────────────────────────────────
 
 export function computeCostBase(units: number, unitPrice: number, brokerage: number): number {

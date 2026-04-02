@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import type { AppData, EntityType, Parcel, Disposal } from "./types"
 
 type AppState = AppData & {
@@ -20,12 +20,28 @@ export function useAppState() {
   return ctx
 }
 
+const STORAGE_KEY = "cgt-tracker-data"
 const EMPTY: AppData = { entityType: "individual", parcels: [], disposals: [] }
 
+function loadFromStorage(): AppData {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return EMPTY
+    return JSON.parse(raw) as AppData
+  } catch {
+    return EMPTY
+  }
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [entityType, setEntityType] = useState<EntityType>(EMPTY.entityType)
-  const [parcels, setParcels] = useState<Parcel[]>(EMPTY.parcels)
-  const [disposals, setDisposals] = useState<Disposal[]>(EMPTY.disposals)
+  const saved = loadFromStorage()
+  const [entityType, setEntityType] = useState<EntityType>(saved.entityType)
+  const [parcels, setParcels] = useState<Parcel[]>(saved.parcels)
+  const [disposals, setDisposals] = useState<Disposal[]>(saved.disposals)
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entityType, parcels, disposals }))
+  }, [entityType, parcels, disposals])
 
   const addParcel = useCallback((p: Parcel) => setParcels((prev) => [...prev, p]), [])
 

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
-import { getFinancialYear } from "../lib/cgt"
+import { getFinancialYear, fmtDate } from "../lib/cgt"
 
 const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -75,7 +75,7 @@ export function CapitalGainsPage() {
                         >
                           <span className="text-slate-400 text-xs">{expanded ? "▼" : "▶"}</span>
                           <span className="font-medium">{d.ticker}</span>
-                          <span>{d.date}</span>
+                          <span>{fmtDate(d.date)}</span>
                           <span>{getFinancialYear(d.date)}</span>
                           <span className="text-right">{d.units}</span>
                           <span className="text-right">${fmt(d.proceeds)}</span>
@@ -107,7 +107,7 @@ export function CapitalGainsPage() {
                                 {d.parcelsUsed.map((pu, i) => (
                                   <tr key={i} className="border-t border-slate-200">
                                     <td className="py-1 font-mono">{pu.parcelId.slice(0, 8)}...</td>
-                                    <td className="py-1">{pu.acquisitionDate}</td>
+                                    <td className="py-1">{fmtDate(pu.acquisitionDate)}</td>
                                     <td className="py-1 text-right">{pu.units}</td>
                                     <td className="py-1 text-right">${fmt(pu.costBase)}</td>
                                     <td className={`py-1 text-right ${pu.grossGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
