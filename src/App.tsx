@@ -6,9 +6,10 @@ import { PortfolioPage } from "./pages/PortfolioPage"
 import { CapitalGainsPage } from "./pages/CapitalGainsPage"
 import { TaxStatementsPage } from "./pages/TaxStatementsPage"
 import { OptimiserPage } from "./pages/OptimiserPage"
+import { UnrealisedGainsPage } from "./pages/UnrealisedGainsPage"
 import { SaveLoadPage } from "./pages/SaveLoadPage"
 
-type Page = "trades" | "portfolio" | "gains" | "tax" | "optimiser" | "saveload"
+type Page = "trades" | "portfolio" | "unrealised" | "gains" | "tax" | "optimiser" | "saveload"
 
 function App() {
   const [page, setPage] = useState<Page>("trades")
@@ -20,6 +21,7 @@ function App() {
         <main className="flex-1 bg-slate-100 p-8">
           {page === "trades" && <TradesPage />}
           {page === "portfolio" && <PortfolioPage />}
+          {page === "unrealised" && <UnrealisedGainsPage />}
           {page === "gains" && <CapitalGainsPage />}
           {page === "tax" && <TaxStatementsPage />}
           {page === "optimiser" && <OptimiserPage />}
