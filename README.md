@@ -1,73 +1,39 @@
-# React + TypeScript + Vite
+# CGT Parcel Tracker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An Australian Capital Gains Tax parcel tracking tool for ETF and share investors. Built as a single-page app that runs entirely in the browser — no account, no server, no data leaves your device.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Trade tracking** — Record buy and sell trades with date, ticker, units, price, and brokerage. Supports entering either unit price or total consideration paid.
+- **Parcel matching** — Disposals are matched against buy parcels using your choice of FIFO, LIFO, or Optimised method.
+- **CGT discount** — Automatically applies the 50% CGT discount for parcels held more than 12 months (individuals and trusts). Companies are ineligible.
+- **Optimised method** — Ranks parcels to minimise net taxable gain: realises losses first, then ranks gains by effective taxable amount after discount.
+- **Capital Gains page** — Lists all disposal events by date with a full parcel-level breakdown, filterable by ticker and financial year.
+- **Tax Summary page** — Summarises gross gains, gross losses, discount applied, and net taxable gain per ticker per financial year.
+- **Optimiser page** — Preview how FIFO, LIFO, and Optimised would compare for a hypothetical disposal before committing.
+- **Portfolio page** — Shows current holdings with live ASX market prices fetched from Yahoo Finance, average cost per unit, and total market value.
+- **CSV import** — Bulk import trades from a CSV file.
+- **Save / Load** — Export all data as a JSON file for backup or transfer between devices.
+- **Persistent storage** — Data is saved automatically to browser localStorage and restored on next visit.
 
-## React Compiler
+## Australian Tax Rules Applied
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Financial year runs 1 July – 30 June (e.g. FY2025 = 1 Jul 2024 – 30 Jun 2025)
+- CGT discount applies to gains where the asset was held **strictly more than 12 months**
+- Losses are never discounted
+- Cost base includes brokerage on acquisition; proceeds are net of brokerage on disposal
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+React 19, TypeScript, Vite, Tailwind CSS 4, Vitest
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Running Locally
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Disclaimer
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+This tool is provided for informational purposes only and does not constitute tax advice. Always verify figures with a qualified tax adviser.
