@@ -21,15 +21,15 @@ export function CapitalGainsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Capital Gains</h1>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Capital Gains</h1>
         <div className="flex gap-2 ml-8">
           <select value={filterTicker} onChange={(e) => setFilterTicker(e.target.value)}
-            className="border border-slate-300 rounded px-3 py-2 text-sm">
+            className="border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100">
             <option value="">All tickers</option>
             {tickers.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
           <select value={filterFY} onChange={(e) => setFilterFY(e.target.value)}
-            className="border border-slate-300 rounded px-3 py-2 text-sm">
+            className="border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100">
             <option value="">All years</option>
             {fys.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
           </select>
@@ -37,14 +37,14 @@ export function CapitalGainsPage() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-lg border border-slate-200 p-8 text-center text-slate-400">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-400">
           No disposals recorded yet.
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-4 py-3"></th>
                 <th className="px-4 py-3">Ticker</th>
                 <th className="px-4 py-3">Disposal Date</th>
@@ -57,9 +57,8 @@ export function CapitalGainsPage() {
                 <th className="px-4 py-3 text-right">Net Taxable</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filtered.map((d) => {
-                // Recompute gains with AMIT adjustments applied dynamically
                 let totalCost = 0
                 let grossGain = 0
                 let discountedGain = 0
@@ -83,11 +82,11 @@ export function CapitalGainsPage() {
                     <td colSpan={10} className="p-0">
                       <div>
                         <div
-                          className="grid grid-cols-[2rem_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr] items-center cursor-pointer hover:bg-slate-50 px-4 py-2.5"
+                          className="grid grid-cols-[2rem_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr] items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 px-4 py-2.5 dark:text-slate-300"
                           onClick={() => setExpandedId(expanded ? null : d.id)}
                         >
                           <span className="text-slate-400 text-xs">{expanded ? "▼" : "▶"}</span>
-                          <span className="font-medium">{d.ticker}</span>
+                          <span className="font-medium dark:text-slate-100">{d.ticker}</span>
                           <span>{fmtDate(d.date)}</span>
                           <span>{getFinancialYear(d.date)}</span>
                           <span className="text-right">{d.units}</span>
@@ -102,11 +101,11 @@ export function CapitalGainsPage() {
                           </span>
                         </div>
                         {expanded && (
-                          <div className="bg-slate-50 px-8 py-3 border-t border-slate-100">
-                            <p className="text-xs font-medium text-slate-500 mb-2 uppercase">Parcel Breakdown ({d.method.toUpperCase()})</p>
+                          <div className="bg-slate-50 dark:bg-slate-700 px-8 py-3 border-t border-slate-100 dark:border-slate-600">
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 uppercase">Parcel Breakdown ({d.method.toUpperCase()})</p>
                             <table className="w-full text-xs">
                               <thead>
-                                <tr className="text-slate-500">
+                                <tr className="text-slate-500 dark:text-slate-400">
                                   <th className="text-left py-1">Parcel ID</th>
                                   <th className="text-left py-1">Acquired</th>
                                   <th className="text-right py-1">Units</th>
@@ -128,7 +127,7 @@ export function CapitalGainsPage() {
                                       ? effectiveGrossGain * (pu.discountEligible ? 0.5 : 1)
                                       : effectiveGrossGain
                                   return (
-                                    <tr key={i} className="border-t border-slate-200">
+                                    <tr key={i} className="border-t border-slate-200 dark:border-slate-600 dark:text-slate-300">
                                       <td className="py-1 font-mono">{pu.parcelId.slice(0, 8)}...</td>
                                       <td className="py-1">{fmtDate(pu.acquisitionDate)}</td>
                                       <td className="py-1 text-right">{pu.units}</td>

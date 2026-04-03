@@ -15,9 +15,13 @@ const NAV: { id: Page; label: string }[] = [
 export function Sidebar({
   active,
   onNav,
+  darkMode,
+  onToggleDark,
 }: {
   active: Page
   onNav: (page: Page) => void
+  darkMode: boolean
+  onToggleDark: () => void
 }) {
   return (
     <aside className="w-56 min-h-screen bg-slate-800 text-white flex flex-col shrink-0">
@@ -39,6 +43,15 @@ export function Sidebar({
           </button>
         ))}
       </nav>
+      <div className="border-t border-slate-700">
+        <button
+          onClick={onToggleDark}
+          className="w-full text-left px-5 py-3 text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"
+        >
+          <span>{darkMode ? "☀" : "🌙"}</span>
+          {darkMode ? "Light mode" : "Dark mode"}
+        </button>
+      </div>
       <div className="px-5 py-4 text-xs text-slate-500 border-t border-slate-700">
         AU CGT Parcel Tracker
       </div>

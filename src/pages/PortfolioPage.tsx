@@ -56,7 +56,6 @@ export function PortfolioPage() {
     setLoading(false)
   }, [holdings.map(h => h.ticker).join(",")])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-fetch on mount
   useEffect(() => {
     refreshPrices()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,7 +70,7 @@ export function PortfolioPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Portfolio</h1>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Portfolio</h1>
         <div className="flex items-center gap-3">
           {lastUpdated && (
             <span className="text-xs text-slate-400">
@@ -88,10 +87,10 @@ export function PortfolioPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+            <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               <th className="px-4 py-3">Ticker</th>
               <th className="px-4 py-3 text-right">Units Held</th>
               <th className="px-4 py-3 text-right">Avg Cost / Unit</th>
@@ -100,7 +99,7 @@ export function PortfolioPage() {
               <th className="px-4 py-3 text-right">Market Value</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {holdings.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
@@ -113,23 +112,23 @@ export function PortfolioPage() {
                   const marketPrice = prices[h.ticker]
                   const marketValue = marketPrice != null ? h.units * marketPrice : null
                   return (
-                    <tr key={h.ticker} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 font-medium">{h.ticker}</td>
-                      <td className="px-4 py-2.5 text-right">{fmt(h.units)}</td>
-                      <td className="px-4 py-2.5 text-right">${fmt(h.avgCost)}</td>
-                      <td className="px-4 py-2.5 text-right">${fmt(h.costBase)}</td>
-                      <td className="px-4 py-2.5 text-right">
+                    <tr key={h.ticker} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                      <td className="px-4 py-2.5 font-medium dark:text-slate-100">{h.ticker}</td>
+                      <td className="px-4 py-2.5 text-right dark:text-slate-300">{fmt(h.units)}</td>
+                      <td className="px-4 py-2.5 text-right dark:text-slate-300">${fmt(h.avgCost)}</td>
+                      <td className="px-4 py-2.5 text-right dark:text-slate-300">${fmt(h.costBase)}</td>
+                      <td className="px-4 py-2.5 text-right dark:text-slate-300">
                         {loading ? (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-slate-300 dark:text-slate-600">—</span>
                         ) : marketPrice != null ? (
                           `$${fmt(marketPrice)}`
                         ) : (
                           <span className="text-slate-400 text-xs">N/A</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-medium">
+                      <td className="px-4 py-2.5 text-right font-medium dark:text-slate-300">
                         {loading ? (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-slate-300 dark:text-slate-600">—</span>
                         ) : marketValue != null ? (
                           `$${fmt(marketValue)}`
                         ) : (
@@ -139,13 +138,13 @@ export function PortfolioPage() {
                     </tr>
                   )
                 })}
-                <tr className="bg-slate-50 font-semibold border-t-2 border-slate-200">
-                  <td className="px-4 py-3">TOTAL</td>
-                  <td className="px-4 py-3 text-right">{fmt(holdings.reduce((s, h) => s + h.units, 0))}</td>
+                <tr className="bg-slate-50 dark:bg-slate-700 font-semibold border-t-2 border-slate-200 dark:border-slate-600">
+                  <td className="px-4 py-3 dark:text-slate-100">TOTAL</td>
+                  <td className="px-4 py-3 text-right dark:text-slate-100">{fmt(holdings.reduce((s, h) => s + h.units, 0))}</td>
                   <td className="px-4 py-3 text-right"></td>
-                  <td className="px-4 py-3 text-right">${fmt(totalCostBase)}</td>
+                  <td className="px-4 py-3 text-right dark:text-slate-100">${fmt(totalCostBase)}</td>
                   <td className="px-4 py-3 text-right"></td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right dark:text-slate-100">
                     {allPricesLoaded ? `$${fmt(totalMarketValue)}` : ""}
                   </td>
                 </tr>
