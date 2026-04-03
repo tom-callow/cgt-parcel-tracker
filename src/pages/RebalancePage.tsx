@@ -94,23 +94,31 @@ export function RebalancePage() {
   const investAmt = parseFloat(investmentAmount.replace(/,/g, ""))
   const canRecommend = allPricesLoaded && targetsComplete && targetsSumTo100 && investAmt > 0
 
-  let recommendation: { ticker: string; projectedPct: number } | null = null
+  type Allocation = { ticker: string; amount: number; resultingPct: number }
+  let recommendation: Allocation[] | null = null
+
   if (canRecommend) {
     const newTotal = totalCurrentValue + investAmt
-    let bestTicker = ""
-    let bestDeficit = -Infinity
-    for (const t of tickers) {
-      const targetPct = parseFloat(draftTargets[t]) / 100
-      const deficit = targetPct * newTotal - currentValues[t]
-      if (deficit > bestDeficit) {
-        bestDeficit = deficit
-        bestTicker = t
-      }
-    }
-    if (bestTicker && bestDeficit > 0) {
-      const projectedValue = currentValues[bestTicker] + investAmt
-      const projectedPct = (projectedValue / newTotal) * 100
-      recommendation = { ticker: bestTicker, projectedPct }
+
+    // Deficit = how much each underweight ticker needs to reach its target share of the new total
+    const deficits = tickers
+      .map((t) => ({
+        ticker: t,
+        deficit: Math.max(0, (parseFloat(draftTargets[t]) / 100) * newTotal - currentValues[t]),
+      }))
+      .filter((d) => d.deficit > 0)
+
+    const totalDeficit = deficits.reduce((s, d) => s + d.deficit, 0)
+
+    if (totalDeficit > 0) {
+      // Allocate proportionally to each ticker's deficit.
+      // When targets sum to 100% and all tickers are underweight this gives exact target splits.
+      // When some tickers are overweight it distributes the available cash as close to target as possible.
+      recommendation = deficits.map(({ ticker, deficit }) => {
+        const amount = Math.round((investAmt * (deficit / totalDeficit)) / 100) * 100
+        const resultingPct = ((currentValues[ticker] + amount) / newTotal) * 100
+        return { ticker, amount, resultingPct }
+      })
     }
   }
 
@@ -290,29 +298,58 @@ export function RebalancePage() {
       )}
 
       {/* Recommendation */}
-      {canRecommend && recommendation && (() => {
-        const { ticker, projectedPct } = recommendation
-        const currentPct = (currentValues[ticker] / totalCurrentValue) * 100
-        const targetPct = parseFloat(draftTargets[ticker])
-        return (
-          <div className="bg-teal-50 border border-teal-200 rounded-lg px-5 py-4">
-            <p className="text-sm font-semibold text-teal-800 mb-1">Recommendation</p>
+      {canRecommend && recommendation && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg px-5 py-4">
+          <p className="text-sm font-semibold text-teal-800 mb-3">Recommendation</p>
+          {recommendation.length === 1 ? (
             <p className="text-sm text-teal-900">
               Invest{" "}
               <span className="font-semibold">${fmt(investAmt)}</span>{" "}
               in{" "}
-              <span className="font-semibold">{ticker}</span>
+              <span className="font-semibold">{recommendation[0].ticker}</span>
               {" "}— this would bring its allocation from{" "}
-              <span className="font-semibold">{fmtPct(currentPct)}</span>{" "}
+              <span className="font-semibold">{fmtPct((currentValues[recommendation[0].ticker] / totalCurrentValue) * 100)}</span>{" "}
               to{" "}
-              <span className="font-semibold">{fmtPct(projectedPct)}</span>
+              <span className="font-semibold">{fmtPct(recommendation[0].resultingPct)}</span>
               {" "}(target:{" "}
-              <span className="font-semibold">{fmtPct(targetPct)}</span>
+              <span className="font-semibold">{fmtPct(parseFloat(draftTargets[recommendation[0].ticker]))}</span>
               ).
             </p>
-          </div>
-        )
-      })()}
+          ) : (
+            <>
+              <p className="text-sm text-teal-900 mb-3">
+                Split your{" "}
+                <span className="font-semibold">${fmt(investAmt)}</span>{" "}
+                investment as follows to reach your target allocations:
+              </p>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs font-medium text-teal-700 uppercase tracking-wider border-b border-teal-200">
+                    <th className="pb-2 text-left">Ticker</th>
+                    <th className="pb-2 text-right">Invest</th>
+                    <th className="pb-2 text-right">Current Alloc</th>
+                    <th className="pb-2 text-right">Resulting Alloc</th>
+                    <th className="pb-2 text-right">Target</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-teal-100">
+                  {recommendation.map(({ ticker, amount, resultingPct }) => (
+                    <tr key={ticker}>
+                      <td className="py-2 font-semibold text-teal-900">{ticker}</td>
+                      <td className="py-2 text-right text-teal-900">${fmt(amount)}</td>
+                      <td className="py-2 text-right text-teal-700">
+                        {fmtPct((currentValues[ticker] / totalCurrentValue) * 100)}
+                      </td>
+                      <td className="py-2 text-right font-semibold text-teal-900">{fmtPct(resultingPct)}</td>
+                      <td className="py-2 text-right text-teal-700">{fmtPct(parseFloat(draftTargets[ticker]))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+      )}
 
       {canRecommend && !recommendation && (
         <div className="bg-slate-50 border border-slate-200 rounded-lg px-5 py-4 text-sm text-slate-500">
