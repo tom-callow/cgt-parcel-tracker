@@ -196,6 +196,85 @@ export function UnrealisedGainsPage() {
         </div>
       )}
 
+      {hasAllPrices && (() => {
+        // Categorise parcels
+        const totalLosses = rows.reduce((s, r) => r.unrealisedGain! < 0 ? s + r.unrealisedGain! : s, 0)
+        const grossNonDiscounted = rows.reduce((s, r) => r.unrealisedGain! >= 0 && !r.discountEligible ? s + r.unrealisedGain! : s, 0)
+        const grossDiscounted = rows.reduce((s, r) => r.unrealisedGain! >= 0 && r.discountEligible ? s + r.unrealisedGain! : s, 0)
+
+        // Step 1: losses offset non-discounted (short-term) gains first
+        const afterStep1 = grossNonDiscounted + totalLosses
+        const netNonDiscounted = Math.max(0, afterStep1)
+        const lossesRemaining = Math.min(0, afterStep1)
+
+        // Step 2: remaining losses offset gross discounted (long-term) gains
+        const netDiscountedGross = grossDiscounted + lossesRemaining
+        const discountApplied = entityType !== "company" && netDiscountedGross > 0 ? netDiscountedGross * 0.5 : 0
+        const netDiscountedTaxable = netDiscountedGross - discountApplied
+
+        const netTaxableGain = netNonDiscounted + netDiscountedTaxable
+
+        const SummaryRow = ({ label, value, sub, positive, negative, bold, dimmed }: {
+          label: string; value: string; sub?: boolean
+          positive?: boolean; negative?: boolean; bold?: boolean; dimmed?: boolean
+        }) => (
+          <tr className="border-b border-slate-100">
+            <td className={`py-2.5 text-slate-600 ${sub ? "pl-10 pr-4" : "px-4"} ${bold ? "font-semibold text-slate-800" : ""}`}>
+              {label}
+            </td>
+            <td className={`px-4 py-2.5 text-right font-medium ${
+              bold ? "font-bold text-base" : ""
+            } ${positive ? "text-emerald-700" : negative ? "text-red-600" : dimmed ? "text-slate-400" : "text-slate-700"}`}>
+              {value}
+            </td>
+          </tr>
+        )
+
+        return (
+          <div className="mt-6 bg-white rounded-lg border border-slate-200 overflow-hidden">
+            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+              <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
+                CGT Summary — If Entire Portfolio Sold Today
+              </h2>
+            </div>
+            <table className="w-full text-sm">
+              <tbody>
+                <tr className="border-b border-slate-100">
+                  <td className="px-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider" colSpan={2}>Inputs</td>
+                </tr>
+                <SummaryRow label="Unrealised losses" value={totalLosses < 0 ? `($${fmt(Math.abs(totalLosses))})` : "$0.00"} negative={totalLosses < 0} />
+                <SummaryRow label={`Short-term gains — held ≤12 months${entityType !== "company" ? ", no discount" : ""}`} value={`$${fmt(grossNonDiscounted)}`} positive={grossNonDiscounted > 0} />
+                {entityType !== "company" && (
+                  <SummaryRow label="Long-term gains, gross — held >12 months, discount eligible" value={`$${fmt(grossDiscounted)}`} positive={grossDiscounted > 0} />
+                )}
+
+                <tr className="border-b border-slate-100 bg-slate-50">
+                  <td className="px-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider" colSpan={2}>
+                    After loss offset — losses applied to short-term gains first, then gross long-term gains
+                  </td>
+                </tr>
+                <SummaryRow sub label="Net short-term gain" value={`$${fmt(netNonDiscounted)}`} positive={netNonDiscounted > 0} dimmed={netNonDiscounted === 0} />
+                {entityType !== "company" && (
+                  <>
+                    <SummaryRow sub label="Net long-term gain, gross" value={netDiscountedGross >= 0 ? `$${fmt(netDiscountedGross)}` : `($${fmt(Math.abs(netDiscountedGross))})`} positive={netDiscountedGross > 0} negative={netDiscountedGross < 0} dimmed={netDiscountedGross === 0} />
+                    {discountApplied > 0 && (
+                      <SummaryRow sub label="Less: 50% CGT discount" value={`($${fmt(discountApplied)})`} dimmed />
+                    )}
+                  </>
+                )}
+
+                <tr className="bg-slate-50 border-t-2 border-slate-300">
+                  <td className="px-4 py-3 font-semibold text-slate-800">Net taxable gain</td>
+                  <td className={`px-4 py-3 text-right font-bold text-base ${netTaxableGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                    {netTaxableGain < 0 ? `($${fmt(Math.abs(netTaxableGain))})` : `$${fmt(netTaxableGain)}`}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
+
       <p className="text-xs text-slate-400 mt-3">
         Prices fetched from Yahoo Finance (ASX). May be delayed up to 20 minutes. Effective gain applies 50% CGT discount to eligible parcels held &gt;12 months.
       </p>

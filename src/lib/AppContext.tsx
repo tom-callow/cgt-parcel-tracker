@@ -23,11 +23,24 @@ export function useAppState() {
 const STORAGE_KEY = "cgt-tracker-data"
 const EMPTY: AppData = { entityType: "individual", parcels: [], disposals: [] }
 
+/** Coerces any numeric fields that may have been stored as strings back to numbers. */
+function sanitiseParcel(p: Parcel): Parcel {
+  return {
+    ...p,
+    units: Number(p.units),
+    unitPrice: Number(p.unitPrice),
+    brokerage: Number(p.brokerage),
+    costBase: Number(p.costBase),
+    unitsRemaining: Number(p.unitsRemaining),
+  }
+}
+
 function loadFromStorage(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return EMPTY
-    return JSON.parse(raw) as AppData
+    const data = JSON.parse(raw) as AppData
+    return { ...data, parcels: data.parcels.map(sanitiseParcel) }
   } catch {
     return EMPTY
   }
@@ -79,7 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const importData = useCallback((data: AppData) => {
     setEntityType(data.entityType)
-    setParcels(data.parcels)
+    setParcels(data.parcels.map(sanitiseParcel))
     setDisposals(data.disposals)
   }, [])
 

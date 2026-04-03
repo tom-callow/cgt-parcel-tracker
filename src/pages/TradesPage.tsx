@@ -3,7 +3,12 @@ import { useAppState } from "../lib/AppContext"
 import { createParcel, executeDisposal, parseTradesCSV, fmtDate } from "../lib/cgt"
 import type { Parcel } from "../lib/types"
 
-const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmt = (n: number) => {
+  const num = Number(n)
+  return isFinite(num)
+    ? num.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—"
+}
 
 export function TradesPage() {
   const state = useAppState()
@@ -261,7 +266,11 @@ export function TradesPage() {
                 type="date"
                 value={formDate}
                 min="1900-01-01"
-                onChange={(e) => setFormDate(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (val && val.split("-")[0].length > 4) return
+                  setFormDate(val)
+                }}
                 onKeyDown={(e) => { if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); unitsRef.current?.focus() } }}
                 className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
               />
@@ -355,11 +364,11 @@ export function TradesPage() {
                     <span className="bg-emerald-200 text-emerald-800 text-xs font-medium px-2 py-0.5 rounded">BUY</span>
                   </td>
                   <td className="px-4 py-2.5">{fmtDate(row.data.date)}</td>
-                  <td className="px-4 py-2.5 text-right">{row.data.units}</td>
+                  <td className="px-4 py-2.5 text-right">{fmt(row.data.units)}</td>
                   <td className="px-4 py-2.5 text-right">${fmt(row.data.unitPrice)}</td>
                   <td className="px-4 py-2.5 text-right">${fmt(row.data.brokerage)}</td>
                   <td className="px-4 py-2.5 text-right font-medium">${fmt(row.data.costBase)}</td>
-                  <td className="px-4 py-2.5 text-right">{row.data.unitsRemaining}</td>
+                  <td className="px-4 py-2.5 text-right">{fmt(row.data.unitsRemaining)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <button onClick={() => openEdit(row.data)} className="text-slate-400 hover:text-teal-600 mr-2 text-xs">Edit</button>
                     <button onClick={() => state.deleteParcel(row.data.id)} className="text-slate-400 hover:text-red-600 text-xs">Delete</button>
@@ -372,7 +381,7 @@ export function TradesPage() {
                     <span className="bg-red-200 text-red-800 text-xs font-medium px-2 py-0.5 rounded">SELL</span>
                   </td>
                   <td className="px-4 py-2.5">{fmtDate(row.data.date)}</td>
-                  <td className="px-4 py-2.5 text-right">{row.data.units}</td>
+                  <td className="px-4 py-2.5 text-right">{fmt(row.data.units)}</td>
                   <td className="px-4 py-2.5 text-right">${fmt(row.data.unitPrice)}</td>
                   <td className="px-4 py-2.5 text-right">${fmt(row.data.brokerage)}</td>
                   <td className="px-4 py-2.5 text-right font-medium">${fmt(row.data.proceeds)}</td>

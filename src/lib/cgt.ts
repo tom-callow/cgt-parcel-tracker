@@ -398,6 +398,24 @@ export type CSVTrade = {
   brokerage: number
 }
 
+/** Normalise a date string to ISO 8601 (YYYY-MM-DD).
+ *  Handles YYYY-MM-DD (already ISO) and D/M/YYYY or DD/MM/YYYY (AU format). */
+function normaliseDate(raw: string): string {
+  const s = raw.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  const parts = s.split("/")
+  if (parts.length === 3) {
+    const [d, m, y] = parts
+    return `${y.padStart(4, "0")}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`
+  }
+  return s // return as-is and let validation catch it
+}
+
+/** Strip currency symbols and thousands commas then parse as float. */
+function parseNumericField(raw: string): number {
+  return parseFloat((raw ?? "").replace(/[$,\s]/g, ""))
+}
+
 export function parseTradesCSV(csv: string): CSVTrade[] {
   const lines = csv.trim().split("\n")
   if (lines.length < 2) return []
@@ -407,7 +425,9 @@ export function parseTradesCSV(csv: string): CSVTrade[] {
   const tickerIdx = header.indexOf("ticker")
   const typeIdx = header.indexOf("type")
   const unitsIdx = header.indexOf("units")
-  const priceIdx = header.findIndex((h) => h === "unit price" || h === "unitprice" || h === "price")
+  const priceIdx = header.findIndex(
+    (h) => h === "unit price" || h === "unitprice" || h === "price" || h === "unit_price"
+  )
   const brokerageIdx = header.indexOf("brokerage")
 
   if ([dateIdx, tickerIdx, typeIdx, unitsIdx, priceIdx].some((i) => i === -1)) {
@@ -421,12 +441,12 @@ export function parseTradesCSV(csv: string): CSVTrade[] {
       throw new Error(`Invalid type "${cols[typeIdx]}" — must be "buy" or "sell"`)
     }
     return {
-      date: cols[dateIdx],
+      date: normaliseDate(cols[dateIdx]),
       ticker: cols[tickerIdx].toUpperCase(),
       type,
-      units: parseFloat(cols[unitsIdx]),
-      unitPrice: parseFloat(cols[priceIdx]),
-      brokerage: brokerageIdx >= 0 ? parseFloat(cols[brokerageIdx]) || 0 : 0,
+      units: parseNumericField(cols[unitsIdx]),
+      unitPrice: parseNumericField(cols[priceIdx]),
+      brokerage: brokerageIdx >= 0 ? parseNumericField(cols[brokerageIdx]) || 0 : 0,
     }
   })
 }

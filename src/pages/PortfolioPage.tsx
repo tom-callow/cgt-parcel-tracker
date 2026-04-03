@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { useAppState } from "../lib/AppContext"
 
-const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const fmt = (n: number) => {
+  const num = Number(n)
+  return isFinite(num)
+    ? num.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—"
+}
 
 async function fetchPrice(ticker: string): Promise<number | null> {
   try {
@@ -110,7 +115,7 @@ export function PortfolioPage() {
                   return (
                     <tr key={h.ticker} className="hover:bg-slate-50">
                       <td className="px-4 py-2.5 font-medium">{h.ticker}</td>
-                      <td className="px-4 py-2.5 text-right">{h.units}</td>
+                      <td className="px-4 py-2.5 text-right">{fmt(h.units)}</td>
                       <td className="px-4 py-2.5 text-right">${fmt(h.avgCost)}</td>
                       <td className="px-4 py-2.5 text-right">${fmt(h.costBase)}</td>
                       <td className="px-4 py-2.5 text-right">
@@ -136,7 +141,7 @@ export function PortfolioPage() {
                 })}
                 <tr className="bg-slate-50 font-semibold border-t-2 border-slate-200">
                   <td className="px-4 py-3">TOTAL</td>
-                  <td className="px-4 py-3 text-right">{holdings.reduce((s, h) => s + h.units, 0)}</td>
+                  <td className="px-4 py-3 text-right">{fmt(holdings.reduce((s, h) => s + h.units, 0))}</td>
                   <td className="px-4 py-3 text-right"></td>
                   <td className="px-4 py-3 text-right">${fmt(totalCostBase)}</td>
                   <td className="px-4 py-3 text-right"></td>
