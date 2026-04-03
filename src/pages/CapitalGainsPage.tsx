@@ -22,7 +22,7 @@ export function CapitalGainsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Capital Gains</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 ml-8">
           <select value={filterTicker} onChange={(e) => setFilterTicker(e.target.value)}
             className="border border-slate-300 rounded px-3 py-2 text-sm">
             <option value="">All tickers</option>
