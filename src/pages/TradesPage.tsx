@@ -1,7 +1,7 @@
 import { useState, useRef } from "react"
 import { useAppState } from "../lib/AppContext"
 import { createParcel, executeDisposal, parseTradesCSV, fmtDate } from "../lib/cgt"
-import type { Parcel } from "../lib/types"
+import type { Parcel, Disposal } from "../lib/types"
 
 const fmt = (n: number) => {
   const num = Number(n)
@@ -28,6 +28,7 @@ export function TradesPage() {
   const [formMethod, setFormMethod] = useState<"fifo" | "lifo" | "optimised">("fifo")
   const [error, setError] = useState("")
   const [showCSV, setShowCSV] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ parcel: Parcel; affectedDisposals: Disposal[] } | null>(null)
   const [csvError, setCSVError] = useState("")
   const [csvSuccess, setCSVSuccess] = useState("")
 
@@ -371,7 +372,14 @@ export function TradesPage() {
                   <td className="px-4 py-2.5 text-right">{fmt(row.data.unitsRemaining)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <button onClick={() => openEdit(row.data)} className="text-slate-400 hover:text-teal-600 mr-2 text-xs">Edit</button>
-                    <button onClick={() => state.deleteParcel(row.data.id)} className="text-slate-400 hover:text-red-600 text-xs">Delete</button>
+                    <button onClick={() => {
+                      const affected = state.disposals.filter((d) => d.parcelsUsed.some((u) => u.parcelId === row.data.id))
+                      if (affected.length > 0) {
+                        setDeleteTarget({ parcel: row.data, affectedDisposals: affected })
+                      } else {
+                        state.deleteParcel(row.data.id)
+                      }
+                    }} className="text-slate-400 hover:text-red-600 text-xs">Delete</button>
                   </td>
                 </tr>
               ) : (
@@ -395,6 +403,58 @@ export function TradesPage() {
           </tbody>
         </table>
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-lg font-semibold text-slate-800 mb-2">Delete buy parcel?</h2>
+            <p className="text-sm text-slate-600 mb-4">
+              <span className="font-medium">{deleteTarget.parcel.ticker}</span> acquired{" "}
+              {fmtDate(deleteTarget.parcel.date)} ({fmt(deleteTarget.parcel.units)} units) was used
+              in {deleteTarget.affectedDisposals.length} sell trade{deleteTarget.affectedDisposals.length !== 1 ? "s" : ""}.
+              Deleting it will also remove those sell records.
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded p-3 mb-5">
+              <p className="text-xs font-medium text-red-700 uppercase tracking-wider mb-2">Sell trades that will be removed</p>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-red-600 border-b border-red-200">
+                    <th className="pb-1">Date</th>
+                    <th className="pb-1">Units</th>
+                    <th className="pb-1 text-right">Proceeds</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-red-100">
+                  {deleteTarget.affectedDisposals.map((d) => (
+                    <tr key={d.id}>
+                      <td className="py-1">{fmtDate(d.date)}</td>
+                      <td className="py-1">{fmt(d.units)}</td>
+                      <td className="py-1 text-right">${fmt(d.proceeds)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 rounded text-sm bg-slate-100 text-slate-700 hover:bg-slate-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  state.deleteParcelCascade(deleteTarget.parcel.id)
+                  setDeleteTarget(null)
+                }}
+                className="px-4 py-2 rounded text-sm bg-red-600 text-white hover:bg-red-700 font-medium"
+              >
+                Delete parcel and {deleteTarget.affectedDisposals.length} sell trade{deleteTarget.affectedDisposals.length !== 1 ? "s" : ""}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

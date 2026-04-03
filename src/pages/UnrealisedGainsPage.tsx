@@ -125,7 +125,7 @@ export function UnrealisedGainsPage() {
                 <tr key={r.id} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium">{r.ticker}</td>
                   <td className="px-4 py-2.5">{fmtDate(r.acquisitionDate)}</td>
-                  <td className="px-4 py-2.5 text-right">{r.units}</td>
+                  <td className="px-4 py-2.5 text-right">{fmt(r.units)}</td>
                   <td className="px-4 py-2.5 text-right">${fmt(r.costPerUnit)}</td>
                   <td className="px-4 py-2.5 text-right">${fmt(r.costBase)}</td>
                   <td className="px-4 py-2.5 text-right">
@@ -234,7 +234,7 @@ export function UnrealisedGainsPage() {
           <div className="mt-6 bg-white rounded-lg border border-slate-200 overflow-hidden">
             <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
               <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
-                CGT Summary — If Entire Portfolio Sold Today
+                Unrealised CGT Summary
               </h2>
             </div>
             <table className="w-full text-sm">

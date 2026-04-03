@@ -6,6 +6,7 @@ type AppState = AppData & {
   addParcel: (p: Parcel) => void
   updateParcel: (p: Parcel) => void
   deleteParcel: (id: string) => void
+  deleteParcelCascade: (id: string) => void
   addDisposal: (d: Disposal, updatedParcels: Parcel[]) => void
   deleteDisposal: (id: string) => void
   importData: (data: AppData) => void
@@ -68,6 +69,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   )
 
+  const deleteParcelCascade = useCallback((id: string) => {
+    // All disposals that used the target parcel
+    const affected = disposals.filter((d) => d.parcelsUsed.some((u) => u.parcelId === id))
+    const affectedIds = new Set(affected.map((d) => d.id))
+
+    // Restore unitsRemaining on any OTHER parcels consumed by the affected disposals
+    setParcels((prev) => {
+      let next = prev.filter((p) => p.id !== id)
+      for (const disposal of affected) {
+        for (const usage of disposal.parcelsUsed) {
+          if (usage.parcelId === id) continue // this parcel is being deleted anyway
+          next = next.map((p) =>
+            p.id === usage.parcelId ? { ...p, unitsRemaining: p.unitsRemaining + usage.units } : p
+          )
+        }
+      }
+      return next
+    })
+
+    setDisposals((prev) => prev.filter((d) => !affectedIds.has(d.id)))
+  }, [disposals])
+
   const addDisposal = useCallback((d: Disposal, updatedParcels: Parcel[]) => {
     setDisposals((prev) => [...prev, d])
     setParcels(updatedParcels)
@@ -111,6 +134,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addParcel,
         updateParcel,
         deleteParcel,
+        deleteParcelCascade,
         addDisposal,
         deleteDisposal,
         importData,
