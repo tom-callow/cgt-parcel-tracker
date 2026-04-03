@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react"
 import type { AppData, EntityType, Parcel, Disposal, AmitAdjustment } from "./types"
+
+type Snapshot = { parcels: Parcel[]; disposals: Disposal[]; amitAdjustments: AmitAdjustment[] }
 
 type AppState = AppData & {
   setEntityType: (t: EntityType) => void
@@ -16,6 +18,8 @@ type AppState = AppData & {
   applyCSVImport: (finalParcels: Parcel[], newDisposals: Disposal[]) => void
   importData: (data: AppData) => void
   exportData: () => AppData
+  undo: () => void
+  canUndo: boolean
 }
 
 const AppContext = createContext<AppState | null>(null)
@@ -64,26 +68,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [disposals, setDisposals] = useState<Disposal[]>(saved.disposals)
   const [amitAdjustments, setAmitAdjustments] = useState<AmitAdjustment[]>(saved.amitAdjustments)
   const [rebalanceTargets, setRebalanceTargets] = useState<Record<string, number>>(saved.rebalanceTargets)
+  const [canUndo, setCanUndo] = useState(false)
+
+  // Always-fresh reference to current mutable state for snapshotting
+  const stateRef = useRef<Snapshot>({ parcels, disposals, amitAdjustments })
+  stateRef.current = { parcels, disposals, amitAdjustments }
+
+  const historyRef = useRef<Snapshot[]>([])
+
+  function saveSnapshot() {
+    const snap = { ...stateRef.current }
+    historyRef.current = [...historyRef.current.slice(-19), snap]
+    setCanUndo(true)
+  }
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ entityType, parcels, disposals, amitAdjustments, rebalanceTargets }))
   }, [entityType, parcels, disposals, amitAdjustments, rebalanceTargets])
 
-  const addParcel = useCallback((p: Parcel) => setParcels((prev) => [...prev, p]), [])
+  const undo = useCallback(() => {
+    const snap = historyRef.current.pop()
+    setCanUndo(historyRef.current.length > 0)
+    if (!snap) return
+    setParcels(snap.parcels)
+    setDisposals(snap.disposals)
+    setAmitAdjustments(snap.amitAdjustments)
+  }, [])
+
+  const addParcel = useCallback((p: Parcel) => {
+    saveSnapshot()
+    setParcels((prev) => [...prev, p])
+  }, [])
 
   const updateParcel = useCallback(
-    (p: Parcel) => setParcels((prev) => prev.map((x) => (x.id === p.id ? p : x))),
+    (p: Parcel) => {
+      saveSnapshot()
+      setParcels((prev) => prev.map((x) => (x.id === p.id ? p : x)))
+    },
     []
   )
 
   const deleteParcel = useCallback(
-    (id: string) => setParcels((prev) => prev.filter((x) => x.id !== id)),
+    (id: string) => {
+      saveSnapshot()
+      setParcels((prev) => prev.filter((x) => x.id !== id))
+    },
     []
   )
 
   const deleteParcelCascade = useCallback((id: string) => {
+    saveSnapshot()
     // All disposals that used the target parcel
-    const affected = disposals.filter((d) => d.parcelsUsed.some((u) => u.parcelId === id))
+    const affected = stateRef.current.disposals.filter((d) => d.parcelsUsed.some((u) => u.parcelId === id))
     const affectedIds = new Set(affected.map((d) => d.id))
 
     // Restore unitsRemaining on any OTHER parcels consumed by the affected disposals
@@ -101,16 +137,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
 
     setDisposals((prev) => prev.filter((d) => !affectedIds.has(d.id)))
-  }, [disposals])
+  }, [])
 
   const addDisposal = useCallback((d: Disposal, updatedParcels: Parcel[]) => {
+    saveSnapshot()
     setDisposals((prev) => [...prev, d])
     setParcels(updatedParcels)
   }, [])
 
   const deleteDisposal = useCallback(
     (id: string) => {
-      const disposal = disposals.find((d) => d.id === id)
+      saveSnapshot()
+      const disposal = stateRef.current.disposals.find((d) => d.id === id)
       if (!disposal) return
       // Restore parcel units
       setParcels((prev) =>
@@ -122,25 +160,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
       setDisposals((prev) => prev.filter((d) => d.id !== id))
     },
-    [disposals]
+    []
   )
 
   const addAmitAdjustment = useCallback(
-    (a: AmitAdjustment) => setAmitAdjustments((prev) => [...prev, a]),
+    (a: AmitAdjustment) => {
+      saveSnapshot()
+      setAmitAdjustments((prev) => [...prev, a])
+    },
     []
   )
 
   const updateAmitAdjustment = useCallback(
-    (a: AmitAdjustment) => setAmitAdjustments((prev) => prev.map((x) => (x.id === a.id ? a : x))),
+    (a: AmitAdjustment) => {
+      saveSnapshot()
+      setAmitAdjustments((prev) => prev.map((x) => (x.id === a.id ? a : x)))
+    },
     []
   )
 
   const deleteAmitAdjustment = useCallback(
-    (id: string) => setAmitAdjustments((prev) => prev.filter((a) => a.id !== id)),
+    (id: string) => {
+      saveSnapshot()
+      setAmitAdjustments((prev) => prev.filter((a) => a.id !== id))
+    },
     []
   )
 
   const applyCSVImport = useCallback((finalParcels: Parcel[], newDisposals: Disposal[]) => {
+    saveSnapshot()
     setParcels(finalParcels)
     setDisposals((prev) => [...prev, ...newDisposals])
   }, [])
@@ -180,6 +228,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         applyCSVImport,
         importData,
         exportData,
+        undo,
+        canUndo,
       }}
     >
       {children}

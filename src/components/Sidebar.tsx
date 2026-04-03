@@ -1,3 +1,5 @@
+import { useAppState } from "../lib/AppContext"
+
 type Page = "trades" | "portfolio" | "unrealised" | "gains" | "tax" | "optimiser" | "amit" | "saveload" | "rebalance"
 
 const NAV: { id: Page; label: string }[] = [
@@ -23,6 +25,8 @@ export function Sidebar({
   darkMode: boolean
   onToggleDark: () => void
 }) {
+  const { undo, canUndo } = useAppState()
+
   return (
     <aside className="w-56 min-h-screen bg-slate-800 text-white flex flex-col shrink-0">
       <div className="px-5 py-6 text-lg font-semibold tracking-tight border-b border-slate-700">
@@ -44,6 +48,14 @@ export function Sidebar({
         ))}
       </nav>
       <div className="border-t border-slate-700">
+        <button
+          onClick={undo}
+          disabled={!canUndo}
+          className="w-full text-left px-5 py-3 text-sm transition-colors flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed text-slate-400 hover:bg-slate-700 hover:text-white disabled:hover:bg-transparent disabled:hover:text-slate-400"
+        >
+          <span>↩</span>
+          Undo
+        </button>
         <button
           onClick={onToggleDark}
           className="w-full text-left px-5 py-3 text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2"
