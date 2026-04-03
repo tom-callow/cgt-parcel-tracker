@@ -121,7 +121,7 @@ export function OptimiserPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-800 mb-6">Optimiser</h1>
+      <h1 className="text-2xl font-bold text-slate-800 mb-6">Sale Optimiser</h1>
       <p className="text-sm text-slate-600 mb-4">
         Preview how different parcel matching methods affect your taxable gain before recording a sale.
       </p>

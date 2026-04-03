@@ -6,7 +6,7 @@ const NAV: { id: Page; label: string }[] = [
   { id: "portfolio", label: "Portfolio" },
   { id: "unrealised", label: "Unrealised Gains" },
   { id: "rebalance", label: "Rebalancing" },
-  { id: "optimiser", label: "Optimiser" },
+  { id: "optimiser", label: "Sale Optimiser" },
   { id: "gains", label: "Capital Gains" },
   { id: "tax", label: "Tax Summary" },
   { id: "saveload", label: "Save / Load" },

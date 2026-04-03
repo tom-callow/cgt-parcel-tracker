@@ -31,6 +31,7 @@ export function TradesPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ parcel: Parcel; affectedDisposals: Disposal[] } | null>(null)
   const [csvError, setCSVError] = useState("")
   const [csvSuccess, setCSVSuccess] = useState("")
+  const [csvMethod, setCSVMethod] = useState<"fifo" | "lifo" | "optimised">("optimised")
 
   type TradeResult =
     | { status: "ok";    type: "buy";  ticker: string; date: string; units: number; unitPrice: number; brokerage: number; amount: number }
@@ -156,7 +157,7 @@ export function TradesPage() {
           } else {
             try {
               const { disposal, updatedParcels } = executeDisposal(
-                workingParcels, t.ticker, t.date, t.units, t.unitPrice, t.brokerage, "fifo", state.entityType
+                workingParcels, t.ticker, t.date, t.units, t.unitPrice, t.brokerage, csvMethod, state.entityType
               )
               workingParcels = updatedParcels
               newDisposals.push(disposal)
@@ -222,8 +223,20 @@ export function TradesPage() {
             <>
               <p className="text-sm text-slate-600 mb-4">
                 Your CSV file must include the following columns. The header row is required.
-                Sells are matched using <strong>FIFO</strong>. Rows are sorted by date before processing.
+                Rows are sorted by date before processing.
               </p>
+              <div className="flex items-center gap-3 mb-4">
+                <label className="text-sm font-medium text-slate-700 whitespace-nowrap">Sell matching method</label>
+                <select
+                  value={csvMethod}
+                  onChange={(e) => setCSVMethod(e.target.value as typeof csvMethod)}
+                  className="border border-slate-300 rounded px-3 py-1.5 text-sm"
+                >
+                  <option value="optimised">Optimised (minimise taxable gain)</option>
+                  <option value="fifo">FIFO</option>
+                  <option value="lifo">LIFO</option>
+                </select>
+              </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded p-4 mb-4">
                 <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Required columns</p>
@@ -237,10 +250,10 @@ export function TradesPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {[
-                      ["date", "YYYY-MM-DD (e.g. 2024-07-16)", "2024-07-16"],
+                      ["date", "DD/MM/YYYY or YYYY-MM-DD", "16/07/2024"],
                       ["ticker", "ASX code", "VAS"],
                       ["type", "buy or sell", "buy"],
-                      ["units", "Number", "100"],
+                      ["units", "Decimal", "100.00"],
                       ["unit price", "Decimal", "105.40"],
                       ["brokerage", "Decimal (optional, defaults to 0)", "0"],
                     ].map(([col, fmtStr, ex]) => (
