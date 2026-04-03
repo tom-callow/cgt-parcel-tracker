@@ -12,6 +12,7 @@ type AppState = AppData & {
   addAmitAdjustment: (a: AmitAdjustment) => void
   updateAmitAdjustment: (a: AmitAdjustment) => void
   deleteAmitAdjustment: (id: string) => void
+  setRebalanceTargets: (targets: Record<string, number>) => void
   importData: (data: AppData) => void
   exportData: () => AppData
 }
@@ -25,7 +26,7 @@ export function useAppState() {
 }
 
 const STORAGE_KEY = "cgt-tracker-data"
-const EMPTY: AppData = { entityType: "individual", parcels: [], disposals: [], amitAdjustments: [] }
+const EMPTY: AppData = { entityType: "individual", parcels: [], disposals: [], amitAdjustments: [], rebalanceTargets: {} }
 
 /** Coerces any numeric fields that may have been stored as strings back to numbers. */
 function sanitiseParcel(p: Parcel): Parcel {
@@ -48,6 +49,7 @@ function loadFromStorage(): AppData {
       ...data,
       parcels: data.parcels.map(sanitiseParcel),
       amitAdjustments: data.amitAdjustments ?? [],
+      rebalanceTargets: data.rebalanceTargets ?? {},
     }
   } catch {
     return EMPTY
@@ -60,10 +62,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [parcels, setParcels] = useState<Parcel[]>(saved.parcels)
   const [disposals, setDisposals] = useState<Disposal[]>(saved.disposals)
   const [amitAdjustments, setAmitAdjustments] = useState<AmitAdjustment[]>(saved.amitAdjustments)
+  const [rebalanceTargets, setRebalanceTargets] = useState<Record<string, number>>(saved.rebalanceTargets)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entityType, parcels, disposals, amitAdjustments }))
-  }, [entityType, parcels, disposals, amitAdjustments])
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entityType, parcels, disposals, amitAdjustments, rebalanceTargets }))
+  }, [entityType, parcels, disposals, amitAdjustments, rebalanceTargets])
 
   const addParcel = useCallback((p: Parcel) => setParcels((prev) => [...prev, p]), [])
 
@@ -141,11 +144,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setParcels(data.parcels.map(sanitiseParcel))
     setDisposals(data.disposals)
     setAmitAdjustments(data.amitAdjustments ?? [])
+    setRebalanceTargets(data.rebalanceTargets ?? {})
   }, [])
 
   const exportData = useCallback(
-    (): AppData => ({ entityType, parcels, disposals, amitAdjustments }),
-    [entityType, parcels, disposals, amitAdjustments]
+    (): AppData => ({ entityType, parcels, disposals, amitAdjustments, rebalanceTargets }),
+    [entityType, parcels, disposals, amitAdjustments, rebalanceTargets]
   )
 
   return (
@@ -155,6 +159,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         parcels,
         disposals,
         amitAdjustments,
+        rebalanceTargets,
         setEntityType,
         addParcel,
         updateParcel,
@@ -165,6 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addAmitAdjustment,
         updateAmitAdjustment,
         deleteAmitAdjustment,
+        setRebalanceTargets,
         importData,
         exportData,
       }}

@@ -46,4 +46,5 @@ export type AppData = {
   parcels: Parcel[]
   disposals: Disposal[]
   amitAdjustments: AmitAdjustment[]
+  rebalanceTargets: Record<string, number>  // ticker → target allocation %
 }

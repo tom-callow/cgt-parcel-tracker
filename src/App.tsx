@@ -9,8 +9,9 @@ import { OptimiserPage } from "./pages/OptimiserPage"
 import { UnrealisedGainsPage } from "./pages/UnrealisedGainsPage"
 import { AmitPage } from "./pages/AmitPage"
 import { SaveLoadPage } from "./pages/SaveLoadPage"
+import { RebalancePage } from "./pages/RebalancePage"
 
-type Page = "trades" | "portfolio" | "unrealised" | "gains" | "tax" | "optimiser" | "amit" | "saveload"
+type Page = "trades" | "portfolio" | "unrealised" | "gains" | "tax" | "optimiser" | "amit" | "saveload" | "rebalance"
 
 function App() {
   const [page, setPage] = useState<Page>("trades")
@@ -28,6 +29,7 @@ function App() {
           {page === "optimiser" && <OptimiserPage />}
           {page === "amit" && <AmitPage />}
           {page === "saveload" && <SaveLoadPage />}
+          {page === "rebalance" && <RebalancePage />}
         </main>
       </div>
     </AppProvider>
