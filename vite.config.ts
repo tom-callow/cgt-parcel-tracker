@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  base: '/cgt-tracker/',
+  base: '/cgt-parcel-tracker/',
   plugins: [react(), tailwindcss()],
   test: {
     globals: true,
