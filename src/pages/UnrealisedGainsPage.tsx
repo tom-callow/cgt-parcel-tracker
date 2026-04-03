@@ -279,7 +279,7 @@ export function UnrealisedGainsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Unrealised Gains</h1>
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Unrealised Gains</h1>
         <div className="flex items-center gap-3">
           {lastUpdated && (
             <span className="text-xs text-slate-400">
@@ -304,14 +304,14 @@ export function UnrealisedGainsPage() {
       </div>
 
       {activeParcels.length === 0 ? (
-        <div className="bg-white rounded-lg border border-slate-200 p-8 text-center text-slate-400">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-400">
           No open parcels. Add buy trades to see unrealised gains.
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+              <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-4 py-3">Ticker</th>
                 <th className="px-4 py-3">Acquired</th>
                 <th className="px-4 py-3 text-right">Units</th>
@@ -325,10 +325,10 @@ export function UnrealisedGainsPage() {
                 <th className="px-4 py-3 text-right">Effective Gain</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {rows.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 font-medium">{r.ticker}</td>
+                <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-300">
+                  <td className="px-4 py-2.5 font-medium dark:text-slate-100">{r.ticker}</td>
                   <td className="px-4 py-2.5">{fmtDate(r.acquisitionDate)}</td>
                   <td className="px-4 py-2.5 text-right">{fmt(r.units)}</td>
                   <td className="px-4 py-2.5 text-right">${fmt(r.rawCostPerUnit)}</td>
@@ -336,7 +336,7 @@ export function UnrealisedGainsPage() {
                   <td className="px-4 py-2.5 text-right">${fmt(r.adjCostBase)}</td>
                   <td className="px-4 py-2.5 text-right">
                     {loading ? (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-300 dark:text-slate-600">—</span>
                     ) : r.marketPrice != null ? (
                       `$${fmt(r.marketPrice)}`
                     ) : (
@@ -345,7 +345,7 @@ export function UnrealisedGainsPage() {
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     {loading ? (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-slate-300 dark:text-slate-600">—</span>
                     ) : r.currentValue != null ? (
                       `$${fmt(r.currentValue)}`
                     ) : (
@@ -354,25 +354,25 @@ export function UnrealisedGainsPage() {
                   </td>
                   <td className={`px-4 py-2.5 text-right font-medium ${
                     r.unrealisedGain == null ? "" :
-                    r.unrealisedGain >= 0 ? "text-emerald-700" : "text-red-600"
+                    r.unrealisedGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                   }`}>
                     {loading ? (
-                      <span className="text-slate-300 font-normal">—</span>
+                      <span className="text-slate-300 dark:text-slate-600 font-normal">—</span>
                     ) : r.unrealisedGain != null ? (
                       `$${fmt(r.unrealisedGain)}`
                     ) : (
                       <span className="text-slate-400 text-xs font-normal">N/A</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right text-slate-500">
+                  <td className="px-4 py-2.5 text-right text-slate-500 dark:text-slate-400">
                     {r.discountEligible ? "Yes (50%)" : "No"}
                   </td>
                   <td className={`px-4 py-2.5 text-right font-medium ${
                     r.effectiveGain == null ? "" :
-                    r.effectiveGain >= 0 ? "text-emerald-700" : "text-red-600"
+                    r.effectiveGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                   }`}>
                     {loading ? (
-                      <span className="text-slate-300 font-normal">—</span>
+                      <span className="text-slate-300 dark:text-slate-600 font-normal">—</span>
                     ) : r.effectiveGain != null ? (
                       `$${fmt(r.effectiveGain)}`
                     ) : (
@@ -381,7 +381,7 @@ export function UnrealisedGainsPage() {
                   </td>
                 </tr>
               ))}
-              <tr className="bg-slate-50 font-semibold border-t-2 border-slate-200">
+              <tr className="bg-slate-50 dark:bg-slate-700 font-semibold border-t-2 border-slate-200 dark:border-slate-600 dark:text-slate-200">
                 <td className="px-4 py-3" colSpan={4}>TOTAL</td>
                 <td className="px-4 py-3 text-right">${fmt(totalRawCostBase)}</td>
                 <td className="px-4 py-3 text-right">${fmt(totalAdjCostBase)}</td>
@@ -391,7 +391,7 @@ export function UnrealisedGainsPage() {
                 </td>
                 <td className={`px-4 py-3 text-right ${
                   totalUnrealisedGain == null ? "" :
-                  totalUnrealisedGain >= 0 ? "text-emerald-700" : "text-red-600"
+                  totalUnrealisedGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                 }`}>
                   {totalUnrealisedGain != null ? `$${fmt(totalUnrealisedGain)}` : ""}
                 </td>
@@ -425,28 +425,28 @@ export function UnrealisedGainsPage() {
           label: string; value: string; sub?: boolean
           positive?: boolean; negative?: boolean; bold?: boolean; dimmed?: boolean
         }) => (
-          <tr className="border-b border-slate-100">
-            <td className={`py-2.5 text-slate-600 ${sub ? "pl-10 pr-4" : "px-4"} ${bold ? "font-semibold text-slate-800" : ""}`}>
+          <tr className="border-b border-slate-100 dark:border-slate-700">
+            <td className={`py-2.5 text-slate-600 dark:text-slate-400 ${sub ? "pl-10 pr-4" : "px-4"} ${bold ? "font-semibold text-slate-800 dark:text-slate-200" : ""}`}>
               {label}
             </td>
             <td className={`px-4 py-2.5 text-right font-medium ${
               bold ? "font-bold text-base" : ""
-            } ${positive ? "text-emerald-700" : negative ? "text-red-600" : dimmed ? "text-slate-400" : "text-slate-700"}`}>
+            } ${positive ? "text-emerald-600 dark:text-emerald-400" : negative ? "text-red-600 dark:text-red-400" : dimmed ? "text-slate-400" : "text-slate-700 dark:text-slate-300"}`}>
               {value}
             </td>
           </tr>
         )
 
         return (
-          <div className="mt-6 bg-white rounded-lg border border-slate-200 overflow-hidden">
-            <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
-              <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
+          <div className="mt-6 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="bg-slate-50 dark:bg-slate-700 px-4 py-3 border-b border-slate-200 dark:border-slate-600">
+              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
                 Unrealised CGT Summary
               </h2>
             </div>
             <table className="w-full text-sm">
               <tbody>
-                <tr className="border-b border-slate-100">
+                <tr className="border-b border-slate-100 dark:border-slate-700">
                   <td className="px-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider" colSpan={2}>Inputs</td>
                 </tr>
                 <SummaryRow label="Unrealised losses" value={totalLosses < 0 ? `($${fmt(Math.abs(totalLosses))})` : "$0.00"} negative={totalLosses < 0} />
@@ -455,7 +455,7 @@ export function UnrealisedGainsPage() {
                   <SummaryRow label="Long-term gains, gross — held >12 months, discount eligible" value={`$${fmt(grossDiscounted)}`} positive={grossDiscounted > 0} />
                 )}
 
-                <tr className="border-b border-slate-100 bg-slate-50">
+                <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
                   <td className="px-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider" colSpan={2}>
                     After loss offset — losses applied to short-term gains first, then gross long-term gains
                   </td>
@@ -470,9 +470,9 @@ export function UnrealisedGainsPage() {
                   </>
                 )}
 
-                <tr className="bg-slate-50 border-t-2 border-slate-300">
-                  <td className="px-4 py-3 font-semibold text-slate-800">Net taxable gain</td>
-                  <td className={`px-4 py-3 text-right font-bold text-base ${netTaxableGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                <tr className="bg-slate-50 dark:bg-slate-700 border-t-2 border-slate-300 dark:border-slate-600">
+                  <td className="px-4 py-3 font-semibold text-slate-800 dark:text-slate-200">Net taxable gain</td>
+                  <td className={`px-4 py-3 text-right font-bold text-base ${netTaxableGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                     {netTaxableGain < 0 ? `($${fmt(Math.abs(netTaxableGain))})` : `$${fmt(netTaxableGain)}`}
                   </td>
                 </tr>
