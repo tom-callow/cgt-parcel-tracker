@@ -33,8 +33,17 @@ export type Disposal = {
   parcelsUsed: ParcelUsage[]
 }
 
+export type AmitAdjustment = {
+  id: string
+  ticker: string
+  date: string              // always 30 June of the relevant FY (YYYY-06-30)
+  totalAdjustment: number   // total $ cost base adjustment from AMAS (positive = increase, negative = decrease)
+  unitsAtDate: number       // units held on adjustment date, computed at save time
+}
+
 export type AppData = {
   entityType: EntityType
   parcels: Parcel[]
   disposals: Disposal[]
+  amitAdjustments: AmitAdjustment[]
 }

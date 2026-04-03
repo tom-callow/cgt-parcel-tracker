@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
-import type { EntityType, Parcel, ParcelUsage, Disposal } from "./types"
+import type { EntityType, Parcel, ParcelUsage, Disposal, AmitAdjustment } from "./types"
 
 // ── Date formatting ─────────────────────────────────────────────────
 
@@ -54,6 +54,35 @@ export function isDiscountEligible(
 /** Discount multiplier for gains: 0.5 for eligible individual/trust, 1.0 otherwise */
 export function discountMultiplier(eligible: boolean): number {
   return eligible ? 0.5 : 1.0
+}
+
+// ── AMIT cost base adjustments ──────────────────────────────────────
+
+/**
+ * Returns the total AMIT adjustment per unit for a given parcel in the context
+ * of a specific disposal or valuation date.
+ *
+ * Only includes adjustments where:
+ *  - the ticker matches
+ *  - the adjustment date is on or after the parcel's acquisition date
+ *    (i.e. the parcel was held when the adjustment was made)
+ *  - the adjustment date is on or before the reference date (disposal/today)
+ */
+export function calcAmitAdjPerUnit(
+  ticker: string,
+  parcelAcquisitionDate: string,
+  referenceDate: string,
+  adjustments: AmitAdjustment[]
+): number {
+  return adjustments
+    .filter(
+      (a) =>
+        a.ticker === ticker &&
+        a.date >= parcelAcquisitionDate &&
+        a.date <= referenceDate &&
+        a.unitsAtDate > 0
+    )
+    .reduce((s, a) => s + a.totalAdjustment / a.unitsAtDate, 0)
 }
 
 // ── Parcel creation ─────────────────────────────────────────────────
@@ -257,7 +286,10 @@ export type FYSummary = {
   netTaxableGain: number
 }
 
-export function computeFYSummary(disposals: Disposal[]): FYSummary[] {
+export function computeFYSummary(
+  disposals: Disposal[],
+  amitAdjustments: AmitAdjustment[] = []
+): FYSummary[] {
   const byFY = new Map<string, Disposal[]>()
 
   for (const d of disposals) {
@@ -269,12 +301,13 @@ export function computeFYSummary(disposals: Disposal[]): FYSummary[] {
   const summaries: FYSummary[] = []
 
   for (const [fy, fyDisposals] of byFY) {
-    const byTicker = new Map<string, ParcelUsage[]>()
+    // Retain disposal date alongside each ParcelUsage so we can apply AMIT adjustments correctly
+    const byTicker = new Map<string, { pu: ParcelUsage; disposalDate: string }[]>()
 
     for (const d of fyDisposals) {
       for (const pu of d.parcelsUsed) {
         if (!byTicker.has(d.ticker)) byTicker.set(d.ticker, [])
-        byTicker.get(d.ticker)!.push(pu)
+        byTicker.get(d.ticker)!.push({ pu, disposalDate: d.date })
       }
     }
 
@@ -285,13 +318,20 @@ export function computeFYSummary(disposals: Disposal[]): FYSummary[] {
       let grossLosses = 0
       let totalDiscountedGain = 0
 
-      for (const u of usages) {
-        if (u.grossGain >= 0) {
-          grossGains += u.grossGain
+      for (const { pu, disposalDate } of usages) {
+        const amitAdj = calcAmitAdjPerUnit(ticker, pu.acquisitionDate, disposalDate, amitAdjustments) * pu.units
+        const effectiveGrossGain = pu.grossGain - amitAdj
+        const effectiveDiscountedGain =
+          effectiveGrossGain > 0
+            ? effectiveGrossGain * discountMultiplier(pu.discountEligible)
+            : effectiveGrossGain
+
+        if (effectiveGrossGain >= 0) {
+          grossGains += effectiveGrossGain
         } else {
-          grossLosses += u.grossGain // negative number
+          grossLosses += effectiveGrossGain // negative number
         }
-        totalDiscountedGain += u.discountedGain
+        totalDiscountedGain += effectiveDiscountedGain
       }
 
       const netGainBeforeDiscount = grossGains + grossLosses

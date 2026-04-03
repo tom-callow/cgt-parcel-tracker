@@ -31,7 +31,8 @@ export function SaveLoadPage() {
           throw new Error("Invalid file format")
         }
         state.importData(data)
-        setMessage(`Imported ${data.parcels.length} parcels and ${data.disposals.length} disposals.`)
+        const amitCount = data.amitAdjustments?.length ?? 0
+        setMessage(`Imported ${data.parcels.length} parcels, ${data.disposals.length} disposals, and ${amitCount} AMIT adjustment${amitCount !== 1 ? "s" : ""}.`)
       } catch {
         setMessage("Error: Could not parse file. Ensure it's a valid CGT Tracker JSON export.")
       }
@@ -77,6 +78,10 @@ export function SaveLoadPage() {
             <div className="flex justify-between">
               <span className="text-slate-500">Tickers:</span>
               <span className="font-medium">{[...new Set(state.parcels.map((p) => p.ticker))].length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">AMIT adjustments:</span>
+              <span className="font-medium">{state.amitAdjustments.length}</span>
             </div>
           </div>
         </div>

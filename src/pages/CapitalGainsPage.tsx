@@ -1,11 +1,11 @@
 import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
-import { getFinancialYear, fmtDate } from "../lib/cgt"
+import { getFinancialYear, fmtDate, calcAmitAdjPerUnit } from "../lib/cgt"
 
 const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export function CapitalGainsPage() {
-  const { disposals } = useAppState()
+  const { disposals, amitAdjustments } = useAppState()
   const [filterTicker, setFilterTicker] = useState("")
   const [filterFY, setFilterFY] = useState("")
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -59,9 +59,22 @@ export function CapitalGainsPage() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((d) => {
-                const totalCost = d.parcelsUsed.reduce((s, p) => s + p.costBase, 0)
-                const grossGain = d.parcelsUsed.reduce((s, p) => s + p.grossGain, 0)
-                const discountedGain = d.parcelsUsed.reduce((s, p) => s + p.discountedGain, 0)
+                // Recompute gains with AMIT adjustments applied dynamically
+                let totalCost = 0
+                let grossGain = 0
+                let discountedGain = 0
+                for (const pu of d.parcelsUsed) {
+                  const amitAdj = calcAmitAdjPerUnit(d.ticker, pu.acquisitionDate, d.date, amitAdjustments) * pu.units
+                  const effectiveCostBase = pu.costBase + amitAdj
+                  const effectiveGrossGain = pu.grossGain - amitAdj
+                  const effectiveDiscountedGain =
+                    effectiveGrossGain > 0
+                      ? effectiveGrossGain * (pu.discountEligible ? 0.5 : 1)
+                      : effectiveGrossGain
+                  totalCost += effectiveCostBase
+                  grossGain += effectiveGrossGain
+                  discountedGain += effectiveDiscountedGain
+                }
                 const discountAmt = grossGain > 0 ? grossGain - discountedGain : 0
                 const expanded = expandedId === d.id
 
@@ -97,28 +110,43 @@ export function CapitalGainsPage() {
                                   <th className="text-left py-1">Parcel ID</th>
                                   <th className="text-left py-1">Acquired</th>
                                   <th className="text-right py-1">Units</th>
-                                  <th className="text-right py-1">Cost Base</th>
+                                  <th className="text-right py-1">Raw Cost Base</th>
+                                  <th className="text-right py-1">AMIT Adj</th>
+                                  <th className="text-right py-1">Adj Cost Base</th>
                                   <th className="text-right py-1">Gross Gain</th>
                                   <th className="text-right py-1">Discount?</th>
                                   <th className="text-right py-1">Net Gain</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {d.parcelsUsed.map((pu, i) => (
-                                  <tr key={i} className="border-t border-slate-200">
-                                    <td className="py-1 font-mono">{pu.parcelId.slice(0, 8)}...</td>
-                                    <td className="py-1">{fmtDate(pu.acquisitionDate)}</td>
-                                    <td className="py-1 text-right">{pu.units}</td>
-                                    <td className="py-1 text-right">${fmt(pu.costBase)}</td>
-                                    <td className={`py-1 text-right ${pu.grossGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                                      ${fmt(pu.grossGain)}
-                                    </td>
-                                    <td className="py-1 text-right">{pu.discountEligible ? "Yes (50%)" : "No"}</td>
-                                    <td className={`py-1 text-right font-medium ${pu.discountedGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
-                                      ${fmt(pu.discountedGain)}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {d.parcelsUsed.map((pu, i) => {
+                                  const amitAdj = calcAmitAdjPerUnit(d.ticker, pu.acquisitionDate, d.date, amitAdjustments) * pu.units
+                                  const effectiveCostBase = pu.costBase + amitAdj
+                                  const effectiveGrossGain = pu.grossGain - amitAdj
+                                  const effectiveDiscountedGain =
+                                    effectiveGrossGain > 0
+                                      ? effectiveGrossGain * (pu.discountEligible ? 0.5 : 1)
+                                      : effectiveGrossGain
+                                  return (
+                                    <tr key={i} className="border-t border-slate-200">
+                                      <td className="py-1 font-mono">{pu.parcelId.slice(0, 8)}...</td>
+                                      <td className="py-1">{fmtDate(pu.acquisitionDate)}</td>
+                                      <td className="py-1 text-right">{pu.units}</td>
+                                      <td className="py-1 text-right">${fmt(pu.costBase)}</td>
+                                      <td className={`py-1 text-right ${amitAdj === 0 ? "text-slate-400" : amitAdj > 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                        {amitAdj === 0 ? "—" : `${amitAdj > 0 ? "+" : ""}$${fmt(amitAdj)}`}
+                                      </td>
+                                      <td className="py-1 text-right">${fmt(effectiveCostBase)}</td>
+                                      <td className={`py-1 text-right ${effectiveGrossGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                        ${fmt(effectiveGrossGain)}
+                                      </td>
+                                      <td className="py-1 text-right">{pu.discountEligible ? "Yes (50%)" : "No"}</td>
+                                      <td className={`py-1 text-right font-medium ${effectiveDiscountedGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                        ${fmt(effectiveDiscountedGain)}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
                               </tbody>
                             </table>
                           </div>

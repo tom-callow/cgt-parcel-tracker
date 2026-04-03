@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
-import type { AppData, EntityType, Parcel, Disposal } from "./types"
+import type { AppData, EntityType, Parcel, Disposal, AmitAdjustment } from "./types"
 
 type AppState = AppData & {
   setEntityType: (t: EntityType) => void
@@ -9,6 +9,9 @@ type AppState = AppData & {
   deleteParcelCascade: (id: string) => void
   addDisposal: (d: Disposal, updatedParcels: Parcel[]) => void
   deleteDisposal: (id: string) => void
+  addAmitAdjustment: (a: AmitAdjustment) => void
+  updateAmitAdjustment: (a: AmitAdjustment) => void
+  deleteAmitAdjustment: (id: string) => void
   importData: (data: AppData) => void
   exportData: () => AppData
 }
@@ -22,7 +25,7 @@ export function useAppState() {
 }
 
 const STORAGE_KEY = "cgt-tracker-data"
-const EMPTY: AppData = { entityType: "individual", parcels: [], disposals: [] }
+const EMPTY: AppData = { entityType: "individual", parcels: [], disposals: [], amitAdjustments: [] }
 
 /** Coerces any numeric fields that may have been stored as strings back to numbers. */
 function sanitiseParcel(p: Parcel): Parcel {
@@ -41,7 +44,11 @@ function loadFromStorage(): AppData {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return EMPTY
     const data = JSON.parse(raw) as AppData
-    return { ...data, parcels: data.parcels.map(sanitiseParcel) }
+    return {
+      ...data,
+      parcels: data.parcels.map(sanitiseParcel),
+      amitAdjustments: data.amitAdjustments ?? [],
+    }
   } catch {
     return EMPTY
   }
@@ -52,10 +59,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [entityType, setEntityType] = useState<EntityType>(saved.entityType)
   const [parcels, setParcels] = useState<Parcel[]>(saved.parcels)
   const [disposals, setDisposals] = useState<Disposal[]>(saved.disposals)
+  const [amitAdjustments, setAmitAdjustments] = useState<AmitAdjustment[]>(saved.amitAdjustments)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entityType, parcels, disposals }))
-  }, [entityType, parcels, disposals])
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ entityType, parcels, disposals, amitAdjustments }))
+  }, [entityType, parcels, disposals, amitAdjustments])
 
   const addParcel = useCallback((p: Parcel) => setParcels((prev) => [...prev, p]), [])
 
@@ -113,15 +121,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [disposals]
   )
 
+  const addAmitAdjustment = useCallback(
+    (a: AmitAdjustment) => setAmitAdjustments((prev) => [...prev, a]),
+    []
+  )
+
+  const updateAmitAdjustment = useCallback(
+    (a: AmitAdjustment) => setAmitAdjustments((prev) => prev.map((x) => (x.id === a.id ? a : x))),
+    []
+  )
+
+  const deleteAmitAdjustment = useCallback(
+    (id: string) => setAmitAdjustments((prev) => prev.filter((a) => a.id !== id)),
+    []
+  )
+
   const importData = useCallback((data: AppData) => {
     setEntityType(data.entityType)
     setParcels(data.parcels.map(sanitiseParcel))
     setDisposals(data.disposals)
+    setAmitAdjustments(data.amitAdjustments ?? [])
   }, [])
 
   const exportData = useCallback(
-    (): AppData => ({ entityType, parcels, disposals }),
-    [entityType, parcels, disposals]
+    (): AppData => ({ entityType, parcels, disposals, amitAdjustments }),
+    [entityType, parcels, disposals, amitAdjustments]
   )
 
   return (
@@ -130,6 +154,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         entityType,
         parcels,
         disposals,
+        amitAdjustments,
         setEntityType,
         addParcel,
         updateParcel,
@@ -137,6 +162,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteParcelCascade,
         addDisposal,
         deleteDisposal,
+        addAmitAdjustment,
+        updateAmitAdjustment,
+        deleteAmitAdjustment,
         importData,
         exportData,
       }}

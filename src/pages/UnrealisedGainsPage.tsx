@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { useAppState } from "../lib/AppContext"
-import { fmtDate, isDiscountEligible } from "../lib/cgt"
+import { fmtDate, isDiscountEligible, calcAmitAdjPerUnit } from "../lib/cgt"
 
 const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -17,7 +17,7 @@ async function fetchPrice(ticker: string): Promise<number | null> {
 }
 
 export function UnrealisedGainsPage() {
-  const { parcels, entityType } = useAppState()
+  const { parcels, entityType, amitAdjustments } = useAppState()
   const [prices, setPrices] = useState<Record<string, number | null>>({})
   const [loading, setLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -46,10 +46,13 @@ export function UnrealisedGainsPage() {
   const rows = activeParcels
     .map((p) => {
       const marketPrice = prices[p.ticker]
-      const costPerUnit = p.costBase / p.units
+      const rawCostPerUnit = p.costBase / p.units
+      const amitAdj = calcAmitAdjPerUnit(p.ticker, p.date, today, amitAdjustments)
+      const adjCostPerUnit = rawCostPerUnit + amitAdj
+      const rawCostBase = p.unitsRemaining * rawCostPerUnit
+      const adjCostBase = p.unitsRemaining * adjCostPerUnit
       const currentValue = marketPrice != null ? p.unitsRemaining * marketPrice : null
-      const costBase = p.unitsRemaining * costPerUnit
-      const unrealisedGain = currentValue != null ? currentValue - costBase : null
+      const unrealisedGain = currentValue != null ? currentValue - adjCostBase : null
       const discountEligible = isDiscountEligible(p.date, today, entityType)
       const effectiveGain =
         unrealisedGain != null
@@ -63,8 +66,9 @@ export function UnrealisedGainsPage() {
         ticker: p.ticker,
         acquisitionDate: p.date,
         units: p.unitsRemaining,
-        costPerUnit,
-        costBase,
+        rawCostPerUnit,
+        rawCostBase,
+        adjCostBase,
         marketPrice,
         currentValue,
         unrealisedGain,
@@ -75,9 +79,10 @@ export function UnrealisedGainsPage() {
     .sort((a, b) => a.ticker.localeCompare(b.ticker) || a.acquisitionDate.localeCompare(b.acquisitionDate))
 
   const hasAllPrices = rows.length > 0 && rows.every((r) => r.marketPrice != null)
-  const totalCostBase = rows.reduce((s, r) => s + r.costBase, 0)
+  const totalRawCostBase = rows.reduce((s, r) => s + r.rawCostBase, 0)
+  const totalAdjCostBase = rows.reduce((s, r) => s + r.adjCostBase, 0)
   const totalCurrentValue = hasAllPrices ? rows.reduce((s, r) => s + (r.currentValue ?? 0), 0) : null
-  const totalUnrealisedGain = totalCurrentValue != null ? totalCurrentValue - totalCostBase : null
+  const totalUnrealisedGain = totalCurrentValue != null ? totalCurrentValue - totalAdjCostBase : null
 
   return (
     <div>
@@ -113,6 +118,7 @@ export function UnrealisedGainsPage() {
                 <th className="px-4 py-3 text-right">Units</th>
                 <th className="px-4 py-3 text-right">Cost / Unit</th>
                 <th className="px-4 py-3 text-right">Cost Base</th>
+                <th className="px-4 py-3 text-right">Adj Cost Base</th>
                 <th className="px-4 py-3 text-right">Market Price</th>
                 <th className="px-4 py-3 text-right">Current Value</th>
                 <th className="px-4 py-3 text-right">Unrealised Gain</th>
@@ -126,8 +132,9 @@ export function UnrealisedGainsPage() {
                   <td className="px-4 py-2.5 font-medium">{r.ticker}</td>
                   <td className="px-4 py-2.5">{fmtDate(r.acquisitionDate)}</td>
                   <td className="px-4 py-2.5 text-right">{fmt(r.units)}</td>
-                  <td className="px-4 py-2.5 text-right">${fmt(r.costPerUnit)}</td>
-                  <td className="px-4 py-2.5 text-right">${fmt(r.costBase)}</td>
+                  <td className="px-4 py-2.5 text-right">${fmt(r.rawCostPerUnit)}</td>
+                  <td className="px-4 py-2.5 text-right">${fmt(r.rawCostBase)}</td>
+                  <td className="px-4 py-2.5 text-right">${fmt(r.adjCostBase)}</td>
                   <td className="px-4 py-2.5 text-right">
                     {loading ? (
                       <span className="text-slate-300">—</span>
@@ -177,7 +184,8 @@ export function UnrealisedGainsPage() {
               ))}
               <tr className="bg-slate-50 font-semibold border-t-2 border-slate-200">
                 <td className="px-4 py-3" colSpan={4}>TOTAL</td>
-                <td className="px-4 py-3 text-right">${fmt(totalCostBase)}</td>
+                <td className="px-4 py-3 text-right">${fmt(totalRawCostBase)}</td>
+                <td className="px-4 py-3 text-right">${fmt(totalAdjCostBase)}</td>
                 <td className="px-4 py-3 text-right"></td>
                 <td className="px-4 py-3 text-right">
                   {totalCurrentValue != null ? `$${fmt(totalCurrentValue)}` : ""}

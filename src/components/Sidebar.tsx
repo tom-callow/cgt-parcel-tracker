@@ -1,7 +1,8 @@
-type Page = "trades" | "portfolio" | "unrealised" | "gains" | "tax" | "optimiser" | "saveload"
+type Page = "trades" | "portfolio" | "unrealised" | "gains" | "tax" | "optimiser" | "amit" | "saveload"
 
 const NAV: { id: Page; label: string }[] = [
   { id: "trades", label: "Trades" },
+  { id: "amit", label: "AMIT Adjustments" },
   { id: "portfolio", label: "Portfolio" },
   { id: "unrealised", label: "Unrealised Gains" },
   { id: "optimiser", label: "Optimiser" },

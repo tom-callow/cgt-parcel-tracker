@@ -4,8 +4,8 @@ import { computeFYSummary } from "../lib/cgt"
 const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export function TaxStatementsPage() {
-  const { disposals } = useAppState()
-  const summaries = computeFYSummary(disposals)
+  const { disposals, amitAdjustments } = useAppState()
+  const summaries = computeFYSummary(disposals, amitAdjustments)
 
   return (
     <div>
