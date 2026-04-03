@@ -32,6 +32,13 @@ export function TradesPage() {
   const [csvError, setCSVError] = useState("")
   const [csvSuccess, setCSVSuccess] = useState("")
 
+  type TradeResult =
+    | { status: "ok";    type: "buy";  ticker: string; date: string; units: number; unitPrice: number; brokerage: number; amount: number }
+    | { status: "ok";    type: "sell"; ticker: string; date: string; units: number; unitPrice: number; brokerage: number; proceeds: number; disposal: Disposal }
+    | { status: "error"; type: "buy" | "sell"; ticker: string; date: string; units: number; unitPrice: number; brokerage: number; error: string }
+  type CSVPreview = { results: TradeResult[]; finalParcels: Parcel[]; newDisposals: Disposal[] }
+  const [csvPreview, setCSVPreview] = useState<CSVPreview | null>(null)
+
   const tickers = [...new Set(state.parcels.map((p) => p.ticker))].sort()
 
   const displayed = state.parcels
@@ -133,18 +140,36 @@ export function TradesPage() {
     reader.onload = () => {
       try {
         const trades = parseTradesCSV(reader.result as string)
+          .sort((a, b) => a.date.localeCompare(b.date) || (a.type === "buy" ? -1 : 1))
+
+        // Simulate all trades in order, threading workingParcels through each step
+        // so sells always see the up-to-date parcel state (fixes stale-state bug).
+        let workingParcels = [...state.parcels]
+        const newDisposals: Disposal[] = []
+        const results: TradeResult[] = []
+
         for (const t of trades) {
           if (t.type === "buy") {
-            state.addParcel(createParcel(t.ticker, t.date, t.units, t.unitPrice, t.brokerage))
+            const parcel = createParcel(t.ticker, t.date, t.units, t.unitPrice, t.brokerage)
+            workingParcels = [...workingParcels, parcel]
+            results.push({ status: "ok", type: "buy", ticker: t.ticker, date: t.date, units: t.units, unitPrice: t.unitPrice, brokerage: t.brokerage, amount: parcel.costBase })
           } else {
-            const { disposal, updatedParcels } = executeDisposal(
-              state.parcels, t.ticker, t.date, t.units, t.unitPrice, t.brokerage, "fifo", state.entityType
-            )
-            state.addDisposal(disposal, updatedParcels)
+            try {
+              const { disposal, updatedParcels } = executeDisposal(
+                workingParcels, t.ticker, t.date, t.units, t.unitPrice, t.brokerage, "fifo", state.entityType
+              )
+              workingParcels = updatedParcels
+              newDisposals.push(disposal)
+              results.push({ status: "ok", type: "sell", ticker: t.ticker, date: t.date, units: t.units, unitPrice: t.unitPrice, brokerage: t.brokerage, proceeds: disposal.proceeds, disposal })
+            } catch (err) {
+              results.push({ status: "error", type: "sell", ticker: t.ticker, date: t.date, units: t.units, unitPrice: t.unitPrice, brokerage: t.brokerage, error: (err as Error).message })
+            }
           }
         }
-        setCSVSuccess(`Successfully imported ${trades.length} trade${trades.length !== 1 ? "s" : ""}.`)
+
+        setCSVPreview({ results, finalParcels: workingParcels, newDisposals })
         setCSVError("")
+        setCSVSuccess("")
       } catch (err) {
         setCSVError((err as Error).message)
         setCSVSuccess("")
@@ -152,6 +177,16 @@ export function TradesPage() {
     }
     reader.readAsText(file)
     e.target.value = ""
+  }
+
+  function handleConfirmImport() {
+    if (!csvPreview) return
+    const hasErrors = csvPreview.results.some((r) => r.status === "error")
+    if (hasErrors) return
+    state.applyCSVImport(csvPreview.finalParcels, csvPreview.newDisposals)
+    const count = csvPreview.results.length
+    setCSVSuccess(`Successfully imported ${count} trade${count !== 1 ? "s" : ""}.`)
+    setCSVPreview(null)
   }
 
   return (
@@ -180,65 +215,163 @@ export function TradesPage() {
         <div className="bg-white border border-slate-200 rounded-lg p-6 mb-6 shadow-sm w-full">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Import CSV</h2>
-            <button onClick={() => setShowCSV(false)} className="text-slate-400 hover:text-slate-600 text-sm">✕ Close</button>
+            <button onClick={() => { setShowCSV(false); setCSVPreview(null); setCSVError(""); setCSVSuccess("") }} className="text-slate-400 hover:text-slate-600 text-sm">✕ Close</button>
           </div>
 
-          <p className="text-sm text-slate-600 mb-4">
-            Your CSV file must include the following columns. The header row is required.
-            Sells are matched using <strong>FIFO</strong> by default.
-          </p>
+          {!csvPreview ? (
+            <>
+              <p className="text-sm text-slate-600 mb-4">
+                Your CSV file must include the following columns. The header row is required.
+                Sells are matched using <strong>FIFO</strong>. Rows are sorted by date before processing.
+              </p>
 
-          <div className="bg-slate-50 border border-slate-200 rounded p-4 mb-4">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Required columns</p>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
-                  <th className="pb-2 pr-6">Column</th>
-                  <th className="pb-2 pr-6">Format</th>
-                  <th className="pb-2">Example</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {[
-                  ["date", "YYYY-MM-DD (e.g. 2024-07-16)", "2024-07-16"],
-                  ["ticker", "ASX code", "VAS"],
-                  ["type", "buy or sell", "buy"],
-                  ["units", "Number", "100"],
-                  ["unit price", "Decimal", "105.40"],
-                  ["brokerage", "Decimal (optional, defaults to 0)", "0"],
-                ].map(([col, fmt, ex]) => (
-                  <tr key={col}>
-                    <td className="py-1.5 pr-6 font-mono text-slate-800">{col}</td>
-                    <td className="py-1.5 pr-6 text-slate-500">{fmt}</td>
-                    <td className="py-1.5 text-slate-500">{ex}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              <div className="bg-slate-50 border border-slate-200 rounded p-4 mb-4">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Required columns</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
+                      <th className="pb-2 pr-6">Column</th>
+                      <th className="pb-2 pr-6">Format</th>
+                      <th className="pb-2">Example</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      ["date", "YYYY-MM-DD (e.g. 2024-07-16)", "2024-07-16"],
+                      ["ticker", "ASX code", "VAS"],
+                      ["type", "buy or sell", "buy"],
+                      ["units", "Number", "100"],
+                      ["unit price", "Decimal", "105.40"],
+                      ["brokerage", "Decimal (optional, defaults to 0)", "0"],
+                    ].map(([col, fmtStr, ex]) => (
+                      <tr key={col}>
+                        <td className="py-1.5 pr-6 font-mono text-slate-800">{col}</td>
+                        <td className="py-1.5 pr-6 text-slate-500">{fmtStr}</td>
+                        <td className="py-1.5 text-slate-500">{ex}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded p-4 mb-5">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Example file</p>
-            <pre className="text-xs text-slate-700 leading-relaxed">{`date,ticker,type,units,unit price,brokerage
+              <div className="bg-slate-50 border border-slate-200 rounded p-4 mb-5">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Example file</p>
+                <pre className="text-xs text-slate-700 leading-relaxed">{`date,ticker,type,units,unit price,brokerage
 2024-01-15,VAS,buy,100,105.40,0
 2024-03-20,VGS,buy,50,130.00,0
 2024-09-01,VAS,sell,30,112.00,0`}</pre>
-          </div>
+              </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="bg-teal-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-teal-700"
-            >
-              Choose CSV File
-            </button>
-            {csvSuccess && (
-              <span className="text-emerald-600 text-sm font-medium">{csvSuccess}</span>
-            )}
-            {csvError && (
-              <span className="text-red-600 text-sm">{csvError}</span>
-            )}
-          </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="bg-teal-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-teal-700"
+                >
+                  Choose CSV File
+                </button>
+                <button
+                  onClick={() => {
+                    const template = "date,ticker,type,units,unit price,brokerage\n2024-01-15,VAS,buy,100,105.40,0\n2024-03-20,VGS,buy,50,130.00,0\n2024-09-01,VAS,sell,30,112.00,0"
+                    const blob = new Blob([template], { type: "text/csv" })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = "trades-template.csv"
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                  className="bg-slate-100 text-slate-600 px-5 py-2 rounded text-sm font-medium hover:bg-slate-200 border border-slate-300"
+                >
+                  Download Template
+                </button>
+                {csvSuccess && <span className="text-emerald-600 text-sm font-medium">{csvSuccess}</span>}
+                {csvError && <span className="text-red-600 text-sm">{csvError}</span>}
+              </div>
+            </>
+          ) : (
+            <>
+              {(() => {
+                const hasErrors = csvPreview.results.some((r) => r.status === "error")
+                const buys = csvPreview.results.filter((r) => r.type === "buy").length
+                const sells = csvPreview.results.filter((r) => r.type === "sell").length
+                return (
+                  <>
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className="text-sm text-slate-600">
+                        {csvPreview.results.length} trade{csvPreview.results.length !== 1 ? "s" : ""} parsed —{" "}
+                        <span className="text-emerald-700 font-medium">{buys} buy{buys !== 1 ? "s" : ""}</span>,{" "}
+                        <span className="text-red-600 font-medium">{sells} sell{sells !== 1 ? "s" : ""}</span>
+                      </span>
+                      {hasErrors && (
+                        <span className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded">
+                          Fix errors before importing
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="border border-slate-200 rounded overflow-hidden mb-5">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            <th className="px-3 py-2">Date</th>
+                            <th className="px-3 py-2">Ticker</th>
+                            <th className="px-3 py-2">Type</th>
+                            <th className="px-3 py-2 text-right">Units</th>
+                            <th className="px-3 py-2 text-right">Unit Price</th>
+                            <th className="px-3 py-2 text-right">Brokerage</th>
+                            <th className="px-3 py-2 text-right">Amount</th>
+                            <th className="px-3 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {csvPreview.results.map((r, i) => (
+                            <tr key={i} className={r.status === "error" ? "bg-red-50" : r.type === "buy" ? "bg-emerald-50" : "bg-red-50/40"}>
+                              <td className="px-3 py-2">{fmtDate(r.date)}</td>
+                              <td className="px-3 py-2 font-medium">{r.ticker}</td>
+                              <td className="px-3 py-2">
+                                {r.type === "buy"
+                                  ? <span className="bg-emerald-200 text-emerald-800 text-xs font-medium px-2 py-0.5 rounded">BUY</span>
+                                  : <span className="bg-red-200 text-red-800 text-xs font-medium px-2 py-0.5 rounded">SELL</span>}
+                              </td>
+                              <td className="px-3 py-2 text-right">{fmt(r.units)}</td>
+                              <td className="px-3 py-2 text-right">${fmt(r.unitPrice)}</td>
+                              <td className="px-3 py-2 text-right">${fmt(r.brokerage)}</td>
+                              <td className="px-3 py-2 text-right font-medium">
+                                {r.status === "ok"
+                                  ? `$${fmt(r.type === "buy" ? r.amount : r.proceeds)}`
+                                  : <span className="text-slate-400">—</span>}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                {r.status === "error"
+                                  ? <span className="text-red-600 text-xs">{r.error}</span>
+                                  : <span className="text-emerald-600 text-xs">✓</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={handleConfirmImport}
+                        disabled={hasErrors}
+                        className="bg-teal-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Confirm Import
+                      </button>
+                      <button
+                        onClick={() => { setCSVPreview(null); setCSVError(""); setCSVSuccess("") }}
+                        className="bg-slate-200 text-slate-700 px-5 py-2 rounded text-sm hover:bg-slate-300"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </>
+                )
+              })()}
+            </>
+          )}
         </div>
       )}
 

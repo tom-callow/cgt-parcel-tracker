@@ -13,6 +13,7 @@ type AppState = AppData & {
   updateAmitAdjustment: (a: AmitAdjustment) => void
   deleteAmitAdjustment: (id: string) => void
   setRebalanceTargets: (targets: Record<string, number>) => void
+  applyCSVImport: (finalParcels: Parcel[], newDisposals: Disposal[]) => void
   importData: (data: AppData) => void
   exportData: () => AppData
 }
@@ -139,6 +140,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     []
   )
 
+  const applyCSVImport = useCallback((finalParcels: Parcel[], newDisposals: Disposal[]) => {
+    setParcels(finalParcels)
+    setDisposals((prev) => [...prev, ...newDisposals])
+  }, [])
+
   const importData = useCallback((data: AppData) => {
     setEntityType(data.entityType)
     setParcels(data.parcels.map(sanitiseParcel))
@@ -171,6 +177,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateAmitAdjustment,
         deleteAmitAdjustment,
         setRebalanceTargets,
+        applyCSVImport,
         importData,
         exportData,
       }}
