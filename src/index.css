@@ -3,6 +3,11 @@
 
 body {
   margin: 0;
+  @apply bg-slate-100;
+}
+
+.dark body {
+  @apply bg-slate-900;
 }
 
 #root {

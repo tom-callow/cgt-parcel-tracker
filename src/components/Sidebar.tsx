@@ -28,11 +28,11 @@ export function Sidebar({
   const { undo, canUndo } = useAppState()
 
   return (
-    <aside className="w-56 min-h-screen bg-slate-800 text-white flex flex-col shrink-0">
+    <aside className="w-56 sticky top-0 h-screen bg-slate-800 text-white flex flex-col shrink-0">
       <div className="px-5 py-6 text-lg font-semibold tracking-tight border-b border-slate-700">
         CGT Tracker
       </div>
-      <nav className="flex-1 py-2">
+      <nav className="flex-1 py-2 overflow-y-auto">
         {NAV.map((item) => (
           <button
             key={item.id}
