@@ -207,11 +207,41 @@ function exportToExcel(rows: GainsRow[], entityType: string) {
   XLSX.writeFile(wb, `unrealised-gains-${date}.xlsx`)
 }
 
+type SortCol = "ticker" | "acquired" | "units" | "costPerUnit" | "costBase" | "adjCostBase" | "marketPrice" | "currentValue" | "unrealisedGain" | "discount" | "effectiveGain"
+
 export function UnrealisedGainsPage() {
   const { parcels, entityType, amitAdjustments } = useAppState()
   const [prices, setPrices] = useState<Record<string, number | null>>({})
   const [loading, setLoading] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [sortCol, setSortCol] = useState<SortCol>("ticker")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+
+  function handleSort(col: SortCol) {
+    if (sortCol === col) {
+      setSortDir((d) => d === "asc" ? "desc" : "asc")
+    } else {
+      setSortCol(col)
+      setSortDir(["ticker", "acquired", "discount"].includes(col) ? "asc" : "desc")
+    }
+  }
+
+  function SortHeader({ col, label, right }: { col: SortCol; label: string; right?: boolean }) {
+    const active = sortCol === col
+    return (
+      <th
+        className={`px-3 py-3 cursor-pointer select-none group hover:text-slate-700 dark:hover:text-slate-200`}
+        onClick={() => handleSort(col)}
+      >
+        <div className={`flex items-center gap-1 ${right ? "justify-end" : "justify-start"}`}>
+          <span>{label}</span>
+          <span className={active ? "text-teal-500" : "opacity-0 group-hover:opacity-30"}>
+            {active ? (sortDir === "asc" ? "▲" : "▼") : "▲"}
+          </span>
+        </div>
+      </th>
+    )
+  }
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -270,6 +300,25 @@ export function UnrealisedGainsPage() {
     })
     .sort((a, b) => a.ticker.localeCompare(b.ticker) || a.acquisitionDate.localeCompare(b.acquisitionDate))
 
+  const sortedRows = [...rows].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1
+    const nullLast = (v: number | null, fallback: number) => v ?? (sortDir === "asc" ? Infinity : -Infinity) * fallback
+    switch (sortCol) {
+      case "ticker":    return dir * a.ticker.localeCompare(b.ticker) || a.acquisitionDate.localeCompare(b.acquisitionDate)
+      case "acquired":  return dir * a.acquisitionDate.localeCompare(b.acquisitionDate)
+      case "units":     return dir * (a.units - b.units)
+      case "costPerUnit":    return dir * (a.rawCostPerUnit - b.rawCostPerUnit)
+      case "costBase":       return dir * (a.rawCostBase - b.rawCostBase)
+      case "adjCostBase":    return dir * (a.adjCostBase - b.adjCostBase)
+      case "marketPrice":    return dir * (nullLast(a.marketPrice, 1) - nullLast(b.marketPrice, 1))
+      case "currentValue":   return dir * (nullLast(a.currentValue, 1) - nullLast(b.currentValue, 1))
+      case "unrealisedGain": return dir * (nullLast(a.unrealisedGain, 1) - nullLast(b.unrealisedGain, 1))
+      case "discount":  return dir * (Number(a.discountEligible) - Number(b.discountEligible))
+      case "effectiveGain":  return dir * (nullLast(a.effectiveGain, 1) - nullLast(b.effectiveGain, 1))
+      default: return 0
+    }
+  })
+
   const hasAllPrices = rows.length > 0 && rows.every((r) => r.marketPrice != null)
   const totalRawCostBase = rows.reduce((s, r) => s + r.rawCostBase, 0)
   const totalAdjCostBase = rows.reduce((s, r) => s + r.adjCostBase, 0)
@@ -312,29 +361,29 @@ export function UnrealisedGainsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <th className="px-4 py-3">Ticker</th>
-                <th className="px-4 py-3">Acquired</th>
-                <th className="px-4 py-3 text-right">Units</th>
-                <th className="px-4 py-3 text-right">Cost / Unit</th>
-                <th className="px-4 py-3 text-right">Cost Base</th>
-                <th className="px-4 py-3 text-right">Adj Cost Base</th>
-                <th className="px-4 py-3 text-right">Market Price</th>
-                <th className="px-4 py-3 text-right">Current Value</th>
-                <th className="px-4 py-3 text-right">Unrealised Gain</th>
-                <th className="px-4 py-3 text-right">Discount?</th>
-                <th className="px-4 py-3 text-right">Effective Gain</th>
+                <SortHeader col="ticker" label="Ticker" />
+                <SortHeader col="acquired" label="Acquired" />
+                <SortHeader col="units" label="Units" right />
+                <SortHeader col="costPerUnit" label="Cost / Unit" right />
+                <SortHeader col="costBase" label="Cost Base" right />
+                <SortHeader col="adjCostBase" label="Adj Cost Base" right />
+                <SortHeader col="marketPrice" label="Market Price" right />
+                <SortHeader col="currentValue" label="Current Value" right />
+                <SortHeader col="unrealisedGain" label="Unrealised Gain" right />
+                <SortHeader col="discount" label="Discount?" right />
+                <SortHeader col="effectiveGain" label="Effective Gain" right />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {rows.map((r) => (
+              {sortedRows.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 dark:text-slate-300">
-                  <td className="px-4 py-2.5 font-medium dark:text-slate-100">{r.ticker}</td>
-                  <td className="px-4 py-2.5">{fmtDate(r.acquisitionDate)}</td>
-                  <td className="px-4 py-2.5 text-right">{fmt(r.units)}</td>
-                  <td className="px-4 py-2.5 text-right">${fmt(r.rawCostPerUnit)}</td>
-                  <td className="px-4 py-2.5 text-right">${fmt(r.rawCostBase)}</td>
-                  <td className="px-4 py-2.5 text-right">${fmt(r.adjCostBase)}</td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="px-3 py-2.5 font-medium dark:text-slate-100">{r.ticker}</td>
+                  <td className="px-3 py-2.5">{fmtDate(r.acquisitionDate)}</td>
+                  <td className="px-3 py-2.5 text-right">{fmt(r.units)}</td>
+                  <td className="px-3 py-2.5 text-right">${fmt(r.rawCostPerUnit)}</td>
+                  <td className="px-3 py-2.5 text-right">${fmt(r.rawCostBase)}</td>
+                  <td className="px-3 py-2.5 text-right">${fmt(r.adjCostBase)}</td>
+                  <td className="px-3 py-2.5 text-right">
                     {loading ? (
                       <span className="text-slate-300 dark:text-slate-600">—</span>
                     ) : r.marketPrice != null ? (
@@ -343,7 +392,7 @@ export function UnrealisedGainsPage() {
                       <span className="text-slate-400 text-xs">N/A</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right">
+                  <td className="px-3 py-2.5 text-right">
                     {loading ? (
                       <span className="text-slate-300 dark:text-slate-600">—</span>
                     ) : r.currentValue != null ? (
@@ -352,7 +401,7 @@ export function UnrealisedGainsPage() {
                       <span className="text-slate-400 text-xs">N/A</span>
                     )}
                   </td>
-                  <td className={`px-4 py-2.5 text-right font-medium ${
+                  <td className={`px-3 py-2.5 text-right font-medium ${
                     r.unrealisedGain == null ? "" :
                     r.unrealisedGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                   }`}>
@@ -364,10 +413,10 @@ export function UnrealisedGainsPage() {
                       <span className="text-slate-400 text-xs font-normal">N/A</span>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right text-slate-500 dark:text-slate-400">
+                  <td className="px-3 py-2.5 text-right text-slate-500 dark:text-slate-400">
                     {r.discountEligible ? "Yes (50%)" : "No"}
                   </td>
-                  <td className={`px-4 py-2.5 text-right font-medium ${
+                  <td className={`px-3 py-2.5 text-right font-medium ${
                     r.effectiveGain == null ? "" :
                     r.effectiveGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                   }`}>
@@ -382,21 +431,21 @@ export function UnrealisedGainsPage() {
                 </tr>
               ))}
               <tr className="bg-slate-50 dark:bg-slate-700 font-semibold border-t-2 border-slate-200 dark:border-slate-600 dark:text-slate-200">
-                <td className="px-4 py-3" colSpan={4}>TOTAL</td>
-                <td className="px-4 py-3 text-right">${fmt(totalRawCostBase)}</td>
-                <td className="px-4 py-3 text-right">${fmt(totalAdjCostBase)}</td>
-                <td className="px-4 py-3 text-right"></td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-3 py-3" colSpan={4}>TOTAL</td>
+                <td className="px-3 py-3 text-right">${fmt(totalRawCostBase)}</td>
+                <td className="px-3 py-3 text-right">${fmt(totalAdjCostBase)}</td>
+                <td className="px-3 py-3 text-right"></td>
+                <td className="px-3 py-3 text-right">
                   {totalCurrentValue != null ? `$${fmt(totalCurrentValue)}` : ""}
                 </td>
-                <td className={`px-4 py-3 text-right ${
+                <td className={`px-3 py-3 text-right ${
                   totalUnrealisedGain == null ? "" :
                   totalUnrealisedGain >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                 }`}>
                   {totalUnrealisedGain != null ? `$${fmt(totalUnrealisedGain)}` : ""}
                 </td>
-                <td className="px-4 py-3"></td>
-                <td className="px-4 py-3"></td>
+                <td className="px-3 py-3"></td>
+                <td className="px-3 py-3"></td>
               </tr>
             </tbody>
           </table>
