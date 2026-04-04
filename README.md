@@ -15,9 +15,12 @@ An Australian Capital Gains Tax parcel tracking tool for ETF and share investors
 - **Tax Summary page** — Summarises gross gains, gross losses, discount applied, and net taxable gain per ticker per financial year, incorporating any AMIT adjustments.
 - **Unrealised Gains page** — Shows open parcels with live ASX prices (via Yahoo Finance), raw and AMIT-adjusted cost base, and estimated CGT liability if sold today.
 - **Optimiser page** — Preview how FIFO, LIFO, and Optimised would compare for a hypothetical disposal before committing.
-- **Portfolio page** — Shows current holdings with average cost per unit and total units remaining.
+- **Portfolio page** — Shows current holdings with units held, average cost per unit, total cost base, and live ASX market price and market value (via Yahoo Finance).
+- **Rebalancing page** — Enter target allocations and see recommended buy/sell amounts to rebalance your portfolio.
 - **CSV import** — Bulk import trades from a CSV file.
 - **Save / Load** — Export all data as a JSON file for backup or transfer between devices.
+- **Undo** — Undo any data mutation (add/delete trade, disposal, AMIT adjustment, etc.).
+- **Dark mode** — Toggle between light and dark themes; preference is saved automatically.
 - **Persistent storage** — Data is saved automatically to browser localStorage and restored on next visit.
 
 ## Australian Tax Rules Applied
