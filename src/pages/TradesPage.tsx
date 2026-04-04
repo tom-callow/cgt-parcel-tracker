@@ -448,7 +448,7 @@ export function TradesPage() {
                 className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100" />
             </div>
             <div>
-              <div className="flex items-center justify-between mb-1 min-w-0">
+              <div className="flex items-center justify-between gap-3 mb-1 min-w-0">
                 <label className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
                   {priceMode === "total" ? "Total Consideration ($)" : "Unit Price ($)"}
                 </label>
@@ -482,7 +482,7 @@ export function TradesPage() {
                   <option value="fifo">FIFO</option>
                   <option value="lifo">LIFO</option>
                   <option value="optimised">Optimised</option>
-                  <option value="manual">Manual (specific identification)</option>
+                  <option value="manual">Manual</option>
                 </select>
               </div>
             )}
