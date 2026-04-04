@@ -265,6 +265,73 @@ export function executeDisposal(
   return { disposal, updatedParcels }
 }
 
+// ── Manual (specific identification) disposal ───────────────────────
+
+export function executeManualDisposal(
+  parcels: Parcel[],
+  ticker: string,
+  date: string,
+  units: number,
+  unitPrice: number,
+  brokerage: number,
+  allocations: { parcelId: string; units: number }[],
+  entityType: EntityType
+): { disposal: Disposal; updatedParcels: Parcel[] } {
+  const parcelsUsed: ParcelUsage[] = []
+
+  for (const alloc of allocations) {
+    if (alloc.units <= 0) continue
+    const parcel = parcels.find((p) => p.id === alloc.parcelId)
+    if (!parcel) throw new Error(`Parcel not found`)
+    if (alloc.units > parcel.unitsRemaining + 0.0001) {
+      throw new Error(
+        `Cannot allocate ${alloc.units} units from parcel acquired ${fmtDate(parcel.date)} — only ${parcel.unitsRemaining} remaining`
+      )
+    }
+
+    const costBasePerUnit = parcel.costBase / parcel.units
+    const parcelCostBase = alloc.units * costBasePerUnit
+    const grossGain = alloc.units * unitPrice - parcelCostBase
+    const eligible = isDiscountEligible(parcel.date, date, entityType)
+    const discounted = grossGain > 0 ? grossGain * discountMultiplier(eligible) : grossGain
+
+    parcelsUsed.push({
+      parcelId: parcel.id,
+      units: alloc.units,
+      costBase: parcelCostBase,
+      acquisitionDate: parcel.date,
+      discountEligible: eligible,
+      grossGain,
+      discountedGain: discounted,
+    })
+  }
+
+  const totalAllocated = parcelsUsed.reduce((s, p) => s + p.units, 0)
+  if (Math.abs(totalAllocated - units) > 0.0001) {
+    throw new Error(`Total allocated (${totalAllocated}) must equal units sold (${units})`)
+  }
+
+  const disposal: Disposal = {
+    id: uuidv4(),
+    ticker: ticker.toUpperCase(),
+    date,
+    units,
+    unitPrice,
+    brokerage,
+    proceeds: computeProceeds(units, unitPrice, brokerage),
+    method: "manual",
+    parcelsUsed,
+  }
+
+  const updatedParcels = parcels.map((p) => {
+    const usage = parcelsUsed.find((u) => u.parcelId === p.id)
+    if (!usage) return p
+    return { ...p, unitsRemaining: p.unitsRemaining - usage.units }
+  })
+
+  return { disposal, updatedParcels }
+}
+
 // ── Tax summary ─────────────────────────────────────────────────────
 
 export type FYSummaryRow = {

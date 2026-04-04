@@ -29,7 +29,7 @@ export type Disposal = {
   unitPrice: number
   brokerage: number
   proceeds: number    // computed: (units * unitPrice) - brokerage
-  method: "fifo" | "lifo" | "optimised"
+  method: "fifo" | "lifo" | "optimised" | "manual"
   parcelsUsed: ParcelUsage[]
 }
 

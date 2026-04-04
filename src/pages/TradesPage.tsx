@@ -1,6 +1,6 @@
 import { useState, useRef } from "react"
 import { useAppState } from "../lib/AppContext"
-import { createParcel, executeDisposal, parseTradesCSV, fmtDate } from "../lib/cgt"
+import { createParcel, executeDisposal, executeManualDisposal, parseTradesCSV, fmtDate } from "../lib/cgt"
 import type { Parcel, Disposal } from "../lib/types"
 
 const fmt = (n: number) => {
@@ -25,13 +25,14 @@ export function TradesPage() {
   const [formPrice, setFormPrice] = useState("")
   const [priceMode, setPriceMode] = useState<"total" | "unit">("total")
   const [formBrokerage, setFormBrokerage] = useState("0")
-  const [formMethod, setFormMethod] = useState<"fifo" | "lifo" | "optimised">("fifo")
+  const [formMethod, setFormMethod] = useState<"fifo" | "lifo" | "optimised" | "manual">("fifo")
+  const [manualAllocations, setManualAllocations] = useState<Record<string, string>>({})
   const [error, setError] = useState("")
   const [showCSV, setShowCSV] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ parcel: Parcel; affectedDisposals: Disposal[] } | null>(null)
   const [csvError, setCSVError] = useState("")
   const [csvSuccess, setCSVSuccess] = useState("")
-  const [csvMethod, setCSVMethod] = useState<"fifo" | "lifo" | "optimised">("optimised")
+  const [csvMethod, setCSVMethod] = useState<"fifo" | "lifo" | "optimised">("fifo")
 
   type TradeResult =
     | { status: "ok";    type: "buy";  ticker: string; date: string; units: number; unitPrice: number; brokerage: number; amount: number }
@@ -65,6 +66,7 @@ export function TradesPage() {
     setPriceMode("total")
     setFormBrokerage("0")
     setFormMethod("fifo")
+    setManualAllocations({})
     setEditId(null)
     setError("")
   }
@@ -120,9 +122,20 @@ export function TradesPage() {
       }
     } else {
       try {
-        const { disposal, updatedParcels } = executeDisposal(
-          state.parcels, ticker, formDate, units, price, brokerage, formMethod, state.entityType
-        )
+        let disposal, updatedParcels
+        if (formMethod === "manual") {
+          const allocations = state.parcels
+            .filter((p) => p.ticker === ticker && p.unitsRemaining > 0)
+            .map((p) => ({ parcelId: p.id, units: parseFloat(manualAllocations[p.id] || "0") || 0 }))
+            .filter((a) => a.units > 0);
+          ({ disposal, updatedParcels } = executeManualDisposal(
+            state.parcels, ticker, formDate, units, price, brokerage, allocations, state.entityType
+          ))
+        } else {
+          ({ disposal, updatedParcels } = executeDisposal(
+            state.parcels, ticker, formDate, units, price, brokerage, formMethod, state.entityType
+          ))
+        }
         state.addDisposal(disposal, updatedParcels)
       } catch (err) {
         setError((err as Error).message)
@@ -410,7 +423,7 @@ export function TradesPage() {
             )}
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ticker</label>
-              <input value={formTicker} onChange={(e) => setFormTicker(e.target.value)}
+              <input value={formTicker} onChange={(e) => { setFormTicker(e.target.value); setManualAllocations({}) }}
                 className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100" placeholder="VAS" />
             </div>
             <div>
@@ -464,16 +477,79 @@ export function TradesPage() {
             {formType === "sell" && !editId && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Method</label>
-                <select value={formMethod} onChange={(e) => setFormMethod(e.target.value as typeof formMethod)}
+                <select value={formMethod} onChange={(e) => { setFormMethod(e.target.value as typeof formMethod); setManualAllocations({}) }}
                   className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100">
                   <option value="fifo">FIFO</option>
                   <option value="lifo">LIFO</option>
                   <option value="optimised">Optimised</option>
+                  <option value="manual">Manual (specific identification)</option>
                 </select>
               </div>
             )}
+            {formType === "sell" && !editId && formMethod === "manual" && (() => {
+              const ticker = formTicker.trim().toUpperCase()
+              const availableParcels = state.parcels.filter((p) => p.ticker === ticker && p.unitsRemaining > 0)
+              const unitsToSell = parseFloat(formUnits) || 0
+              const totalAllocated = availableParcels.reduce(
+                (s, p) => s + (parseFloat(manualAllocations[p.id] || "0") || 0), 0
+              )
+              const remaining = Math.round((unitsToSell - totalAllocated) * 1e8) / 1e8
+
+              if (!ticker || availableParcels.length === 0) return null
+
+              return (
+                <div className="col-span-full mt-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">Allocate parcels</span>
+                    <span className={`text-xs font-medium ${remaining === 0 && unitsToSell > 0 ? "text-emerald-600" : remaining < 0 ? "text-red-500" : "text-slate-400 dark:text-slate-500"}`}>
+                      {remaining === 0 && unitsToSell > 0 ? "Fully allocated" : remaining < 0 ? `Over by ${Math.abs(remaining)} units` : `${unitsToSell > 0 ? remaining : unitsToSell} units remaining`}
+                    </span>
+                  </div>
+                  <div className="border border-slate-200 dark:border-slate-600 rounded overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          <th className="px-3 py-2">Acquired</th>
+                          <th className="px-3 py-2 text-right">Units Available</th>
+                          <th className="px-3 py-2 text-right">Cost / Unit</th>
+                          <th className="px-3 py-2 text-right w-36">Units to Sell</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {availableParcels.map((p) => (
+                          <tr key={p.id} className="dark:text-slate-300">
+                            <td className="px-3 py-2">{fmtDate(p.date)}</td>
+                            <td className="px-3 py-2 text-right">{fmt(p.unitsRemaining)}</td>
+                            <td className="px-3 py-2 text-right">${fmt(p.costBase / p.units)}</td>
+                            <td className="px-3 py-2 text-right">
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                max={p.unitsRemaining}
+                                value={manualAllocations[p.id] ?? ""}
+                                placeholder="0"
+                                onChange={(e) => setManualAllocations((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                                className="w-full border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm text-right bg-white dark:bg-slate-700 dark:text-slate-100"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })()}
             <div className="col-span-full flex gap-2">
-              <button type="submit" className="bg-teal-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-teal-700">
+              <button type="submit" disabled={formType === "sell" && !editId && formMethod === "manual" && (() => {
+                const ticker = formTicker.trim().toUpperCase()
+                const availableParcels = state.parcels.filter((p) => p.ticker === ticker && p.unitsRemaining > 0)
+                const unitsToSell = parseFloat(formUnits) || 0
+                const totalAllocated = availableParcels.reduce((s, p) => s + (parseFloat(manualAllocations[p.id] || "0") || 0), 0)
+                return Math.abs(totalAllocated - unitsToSell) > 0.0001
+              })()}
+              className="bg-teal-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed">
                 {editId ? "Update" : "Save"}
               </button>
               <button type="button" onClick={() => { setShowForm(false); resetForm() }}
