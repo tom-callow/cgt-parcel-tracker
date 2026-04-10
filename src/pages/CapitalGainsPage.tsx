@@ -1,11 +1,16 @@
 import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 import { getFinancialYear, fmtDate, calcAmitAdjPerUnit } from "../lib/cgt"
+import { exportCapitalGainsXLSX } from "../lib/exportExcel"
 
 const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export function CapitalGainsPage() {
-  const { disposals, amitAdjustments } = useAppState()
+  const { parcels, disposals, amitAdjustments, entityType } = useAppState()
+
+  function handleExport() {
+    exportCapitalGainsXLSX(parcels, disposals, amitAdjustments, entityType, filterFY || null)
+  }
   const [filterTicker, setFilterTicker] = useState("")
   const [filterFY, setFilterFY] = useState("")
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -33,6 +38,18 @@ export function CapitalGainsPage() {
             <option value="">All years</option>
             {fys.map((fy) => <option key={fy} value={fy}>{fy}</option>)}
           </select>
+          {disposals.length > 0 && (
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-3 py-2 rounded transition-colors"
+              title="Export parcel-level calculations to Excel for ATO audit trail"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v7.69l2.72-2.72a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 1.06-1.06l2.72 2.72V3.75A.75.75 0 0 1 10 3Zm-6.75 13.5a.75.75 0 0 1 .75-.75h12a.75.75 0 0 1 0 1.5h-12a.75.75 0 0 1-.75-.75Z" clipRule="evenodd" />
+              </svg>
+              Export {filterFY || "All"} to Excel
+            </button>
+          )}
         </div>
       </div>
 
