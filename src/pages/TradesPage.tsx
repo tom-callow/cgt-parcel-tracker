@@ -55,7 +55,7 @@ export function TradesPage() {
   const rows: Row[] = [
     ...displayed.map((p) => ({ kind: "buy" as const, data: p })),
     ...disposals.map((d) => ({ kind: "sell" as const, data: d })),
-  ].sort((a, b) => a.data.date.localeCompare(b.data.date))
+  ].sort((a, b) => b.data.date.localeCompare(a.data.date))
 
   function resetForm() {
     setFormType("buy")
