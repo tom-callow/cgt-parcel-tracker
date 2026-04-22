@@ -25,7 +25,7 @@ export function Sidebar({
   darkMode: boolean
   onToggleDark: () => void
 }) {
-  const { undo, canUndo } = useAppState()
+  const { undo, canUndo, signOut } = useAppState()
 
   return (
     <aside className="w-56 sticky top-0 h-screen bg-slate-800 text-white flex flex-col shrink-0">
@@ -64,9 +64,13 @@ export function Sidebar({
           {darkMode ? "Light mode" : "Dark mode"}
         </button>
       </div>
-      <div className="px-5 py-4 text-xs text-slate-500 border-t border-slate-700">
-        AU CGT Parcel Tracker
-      </div>
+      <button
+        onClick={signOut}
+        className="w-full text-left px-5 py-3 text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors flex items-center gap-2 border-t border-slate-700"
+      >
+        <span>⎋</span>
+        Sign out
+      </button>
     </aside>
   )
 }
