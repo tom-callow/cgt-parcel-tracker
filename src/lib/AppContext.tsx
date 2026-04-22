@@ -145,6 +145,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         id: session.user.id,
         data: { entityType, parcels, disposals, amitAdjustments, rebalanceTargets },
         updated_at: new Date().toISOString(),
+      }).then(({ error }) => {
+        if (error) console.error("Supabase save error:", error)
+        else console.log("Supabase save OK")
       })
     }, 1000)
     return () => {
