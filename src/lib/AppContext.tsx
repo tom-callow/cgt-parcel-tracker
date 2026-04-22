@@ -106,7 +106,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .from("user_data")
       .select("data")
       .eq("id", session.user.id)
-      .single()
+      .maybeSingle()
       .then(({ data, error }) => {
         if (!error && data?.data) {
           const appData = data.data as AppData
