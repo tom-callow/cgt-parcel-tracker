@@ -8,17 +8,7 @@ const fmt = (n: number) => {
     : "—"
 }
 
-async function fetchPrice(ticker: string): Promise<number | null> {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}.AX?interval=1d&range=1d`
-    const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`)
-    if (!res.ok) return null
-    const json = await res.json()
-    return json?.chart?.result?.[0]?.meta?.regularMarketPrice ?? null
-  } catch {
-    return null
-  }
-}
+import { fetchPrices } from "../lib/marketData"
 
 export function PortfolioPage() {
   const { parcels } = useAppState()
@@ -48,10 +38,8 @@ export function PortfolioPage() {
   const refreshPrices = useCallback(async () => {
     if (holdings.length === 0) return
     setLoading(true)
-    const results = await Promise.all(
-      holdings.map(async (h) => [h.ticker, await fetchPrice(h.ticker)] as [string, number | null])
-    )
-    setPrices(Object.fromEntries(results))
+    const results = await fetchPrices(holdings.map((h) => h.ticker))
+    setPrices(results)
     setLastUpdated(new Date())
     setLoading(false)
   }, [holdings.map(h => h.ticker).join(",")])  // eslint-disable-line react-hooks/exhaustive-deps

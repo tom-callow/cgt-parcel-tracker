@@ -5,17 +5,7 @@ import { fmtDate, isDiscountEligible, calcAmitAdjPerUnit } from "../lib/cgt"
 
 const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-async function fetchPrice(ticker: string): Promise<number | null> {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}.AX?interval=1d&range=1d`
-    const res = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(url)}`)
-    if (!res.ok) return null
-    const json = await res.json()
-    return json?.chart?.result?.[0]?.meta?.regularMarketPrice ?? null
-  } catch {
-    return null
-  }
-}
+import { fetchPrices } from "../lib/marketData"
 
 type GainsRow = {
   id: string
@@ -251,10 +241,8 @@ export function UnrealisedGainsPage() {
   const refreshPrices = useCallback(async () => {
     if (tickers.length === 0) return
     setLoading(true)
-    const results = await Promise.all(
-      tickers.map(async (t) => [t, await fetchPrice(t)] as [string, number | null])
-    )
-    setPrices(Object.fromEntries(results))
+    const results = await fetchPrices(tickers)
+    setPrices(results)
     setLastUpdated(new Date())
     setLoading(false)
   }, [tickers.join(",")])  // eslint-disable-line react-hooks/exhaustive-deps

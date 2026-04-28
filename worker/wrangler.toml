@@ -1,0 +1,7 @@
+name = "cgt-market-proxy"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Uncomment to restrict CORS to your frontend domain instead of "*"
+# [vars]
+# ALLOWED_ORIGIN = "https://your-frontend.pages.dev"
