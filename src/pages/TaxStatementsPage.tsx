@@ -1,8 +1,7 @@
 import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 import { computeFYSummary } from "../lib/cgt"
-
-const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+import { fmt } from "../lib/formatters"
 
 export function TaxStatementsPage() {
   const { disposals, amitAdjustments } = useAppState()

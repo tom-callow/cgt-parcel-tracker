@@ -1,8 +1,7 @@
 import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 import { previewDisposal, executeDisposal, type OptimiserResult } from "../lib/cgt"
-
-const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+import { fmt, uniqueTickers } from "../lib/formatters"
 
 const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
 const selectCls = "w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
@@ -19,7 +18,7 @@ export function OptimiserPage() {
   const [result, setResult] = useState<{ fifo: OptimiserResult; lifo: OptimiserResult; optimised: OptimiserResult } | null>(null)
   const [error, setError] = useState("")
 
-  const tickers = [...new Set(state.parcels.filter((p) => p.unitsRemaining > 0).map((p) => p.ticker))].sort()
+  const tickers = uniqueTickers(state.parcels.filter((p) => p.unitsRemaining > 0))
 
   function handlePreview(e: React.FormEvent) {
     e.preventDefault()

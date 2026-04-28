@@ -1,14 +1,8 @@
 import { useState, useEffect, useCallback } from "react"
 import { useAppState } from "../lib/AppContext"
 
-const fmt = (n: number) => {
-  const num = Number(n)
-  return isFinite(num)
-    ? num.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : "—"
-}
-
 import { fetchPrices } from "../lib/marketData"
+import { fmt } from "../lib/formatters"
 
 export function PortfolioPage() {
   const { parcels } = useAppState()

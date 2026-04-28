@@ -1,13 +1,8 @@
 import { useState, useEffect, useCallback } from "react"
 import { useAppState } from "../lib/AppContext"
 
-const fmt = (n: number) =>
-  n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-const fmtPct = (n: number) =>
-  n.toLocaleString("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "%"
-
 import { fetchPrices } from "../lib/marketData"
+import { fmt, fmtPct } from "../lib/formatters"
 
 export function RebalancePage() {
   const { parcels, rebalanceTargets, setRebalanceTargets } = useAppState()

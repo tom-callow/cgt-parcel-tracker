@@ -2,8 +2,7 @@ import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 import { getFinancialYear, fmtDate, calcAmitAdjPerUnit } from "../lib/cgt"
 import { exportCapitalGainsXLSX } from "../lib/exportExcel"
-
-const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+import { fmt, byDate, uniqueTickers } from "../lib/formatters"
 
 export function CapitalGainsPage() {
   const { parcels, disposals, amitAdjustments, entityType } = useAppState()
@@ -15,13 +14,13 @@ export function CapitalGainsPage() {
   const [filterFY, setFilterFY] = useState("")
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const tickers = [...new Set(disposals.map((d) => d.ticker))].sort()
+  const tickers = uniqueTickers(disposals)
   const fys = [...new Set(disposals.map((d) => getFinancialYear(d.date)))].sort()
 
   const filtered = disposals
     .filter((d) => !filterTicker || d.ticker === filterTicker)
     .filter((d) => !filterFY || getFinancialYear(d.date) === filterFY)
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort(byDate)
 
   return (
     <div>

@@ -2,13 +2,7 @@ import { useState, useRef } from "react"
 import { useAppState } from "../lib/AppContext"
 import { createParcel, executeDisposal, executeManualDisposal, parseTradesCSV, fmtDate } from "../lib/cgt"
 import type { Parcel, Disposal } from "../lib/types"
-
-const fmt = (n: number) => {
-  const num = Number(n)
-  return isFinite(num)
-    ? num.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : "—"
-}
+import { fmt, byDate, uniqueTickers } from "../lib/formatters"
 
 export function TradesPage() {
   const state = useAppState()
@@ -41,15 +35,15 @@ export function TradesPage() {
   type CSVPreview = { results: TradeResult[]; finalParcels: Parcel[]; newDisposals: Disposal[] }
   const [csvPreview, setCSVPreview] = useState<CSVPreview | null>(null)
 
-  const tickers = [...new Set(state.parcels.map((p) => p.ticker))].sort()
+  const tickers = uniqueTickers(state.parcels)
 
   const displayed = state.parcels
     .filter((p) => !filter || p.ticker === filter)
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort(byDate)
 
   const disposals = state.disposals
     .filter((d) => !filter || d.ticker === filter)
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort(byDate)
 
   type Row = { kind: "buy"; data: Parcel } | { kind: "sell"; data: typeof disposals[0] }
   const rows: Row[] = [
@@ -156,8 +150,6 @@ export function TradesPage() {
         const trades = parseTradesCSV(reader.result as string)
           .sort((a, b) => a.date.localeCompare(b.date) || (a.type === "buy" ? -1 : 1))
 
-        // Simulate all trades in order, threading workingParcels through each step
-        // so sells always see the up-to-date parcel state (fixes stale-state bug).
         let workingParcels = [...state.parcels]
         const newDisposals: Disposal[] = []
         const results: TradeResult[] = []

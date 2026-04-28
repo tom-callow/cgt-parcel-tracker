@@ -3,9 +3,8 @@ import * as XLSX from "xlsx-js-style"
 import { useAppState } from "../lib/AppContext"
 import { fmtDate, isDiscountEligible, calcAmitAdjPerUnit } from "../lib/cgt"
 
-const fmt = (n: number) => n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
 import { fetchPrices } from "../lib/marketData"
+import { fmt } from "../lib/formatters"
 
 type GainsRow = {
   id: string

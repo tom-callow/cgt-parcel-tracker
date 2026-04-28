@@ -51,8 +51,7 @@ export function isDiscountEligible(
   return disp > threshold
 }
 
-/** Discount multiplier for gains: 0.5 for eligible individual/trust, 1.0 otherwise */
-export function discountMultiplier(eligible: boolean): number {
+function discountMultiplier(eligible: boolean): number {
   return eligible ? 0.5 : 1.0
 }
 
