@@ -427,7 +427,10 @@ export function TradesPage() {
                 className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100" placeholder="VAS" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Date</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">Date</label>
+                <button type="button" onClick={() => setFormDate(new Date().toISOString().slice(0, 10))} className="text-xs text-teal-600 dark:text-teal-400 hover:underline">Today</button>
+              </div>
               <input
                 type="date"
                 value={formDate}
