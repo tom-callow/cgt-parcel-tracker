@@ -6,6 +6,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem("darkMode")
     if (saved !== null) return saved === "true"
@@ -22,7 +23,17 @@ export function LoginPage() {
     setError(null)
     setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError(error.message)
+    if (error) {
+      setError(error.message)
+    } else {
+      if (rememberMe) {
+        localStorage.setItem("cgt-remember-me", "1")
+        sessionStorage.removeItem("cgt-session-alive")
+      } else {
+        localStorage.removeItem("cgt-remember-me")
+        sessionStorage.setItem("cgt-session-alive", "1")
+      }
+    }
     setLoading(false)
   }
 
@@ -62,6 +73,15 @@ export function LoginPage() {
               className="bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white rounded px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 focus:outline-none focus:border-teal-500"
             />
           </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="accent-teal-600"
+            />
+            Remember me
+          </label>
           {error && <p className="text-red-500 dark:text-red-400 text-sm">{error}</p>}
           <button
             type="submit"

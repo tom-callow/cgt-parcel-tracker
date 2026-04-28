@@ -86,7 +86,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Auth setup
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const remembered = localStorage.getItem("cgt-remember-me") === "1"
+        const sessionAlive = sessionStorage.getItem("cgt-session-alive") === "1"
+        if (!remembered && !sessionAlive) {
+          // New browser session and user didn't want to be remembered
+          await supabase.auth.signOut()
+          setAuthLoading(false)
+          return
+        }
+      }
       setSession(session)
       setAuthLoading(false)
     })
