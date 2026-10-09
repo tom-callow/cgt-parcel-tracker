@@ -1,13 +1,14 @@
 import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 import { getFinancialYear, fmtDate, calcAmitAdjPerUnit } from "../lib/cgt"
-import { exportCapitalGainsXLSX } from "../lib/exportExcel"
 import { fmt, byDate, uniqueTickers } from "../lib/formatters"
 
 export function CapitalGainsPage() {
   const { parcels, disposals, amitAdjustments, entityType } = useAppState()
 
-  function handleExport() {
+  async function handleExport() {
+    // Loaded on demand so the Excel library isn't part of the initial download
+    const { exportCapitalGainsXLSX } = await import("../lib/exportExcel")
     exportCapitalGainsXLSX(parcels, disposals, amitAdjustments, entityType, filterFY || null)
   }
   const [filterTicker, setFilterTicker] = useState("")
