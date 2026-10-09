@@ -50,6 +50,16 @@ function sanitiseParcel(p: Parcel): Parcel {
   }
 }
 
+// Supabase query builders are lazy — the request is only sent once the builder is awaited/then'd.
+async function saveToSupabase(userId: string, data: AppData) {
+  const { error } = await supabase.from("user_data").upsert({
+    id: userId,
+    data,
+    updated_at: new Date().toISOString(),
+  })
+  if (error) console.error("Supabase save error:", error)
+}
+
 function loadFromStorage(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -118,7 +128,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .eq("id", session.user.id)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (!error && data?.data) {
+        if (error) {
+          // Don't fall through to the localStorage migration — that would overwrite cloud data
+          console.error("Supabase load error:", error)
+        } else if (data?.data) {
           const appData = data.data as AppData
           setEntityType(appData.entityType ?? "individual")
           setParcels((appData.parcels ?? []).map(sanitiseParcel))
@@ -134,11 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setAmitAdjustments(local.amitAdjustments)
           setRebalanceTargets(local.rebalanceTargets)
           // Save migration immediately
-          supabase.from("user_data").upsert({
-            id: session.user.id,
-            data: local,
-            updated_at: new Date().toISOString(),
-          })
+          saveToSupabase(session.user.id, local)
         }
         isLoadingRef.current = false
         setDataLoading(false)
@@ -151,11 +160,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!session || isLoadingRef.current) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      supabase.from("user_data").upsert({
-        id: session.user.id,
-        data: { entityType, parcels, disposals, amitAdjustments, rebalanceTargets },
-        updated_at: new Date().toISOString(),
-      })
+      saveToSupabase(session.user.id, { entityType, parcels, disposals, amitAdjustments, rebalanceTargets })
     }, 1000)
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
