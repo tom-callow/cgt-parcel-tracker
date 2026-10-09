@@ -63,12 +63,15 @@ All tax calculation lives here. Key functions:
 - `executeManualDisposal` — builds a disposal from user-chosen parcels (method `"manual"`).
 - `computeFYSummary` — aggregates disposals into per-FY, per-ticker summaries, applying AMIT adjustments to cost bases.
 - `previewDisposal` — compares all three methods side-by-side without committing (used by OptimiserPage).
-- `parseTradesCSV` — parses a CSV of trades; handles both ISO and AU date formats.
+- `parseImportCSV` — entry point for trade CSV imports. Detects a **Betashares Direct** export (header has `Effective Date` + `Activity Type`) and uses `parseBetasharesCSV`, otherwise the standard format via `parseTradesCSV` (date, ticker, type, units, unit price, brokerage; ISO or AU dates). Returns `{ format, trades, ignored }`.
+  - Betashares: `Symbol` is `TICKER:AU`; sell quantities and buy `Gross` are negative; brokerage is blank; `Gross` = Price × Quantity, so the unit price is derived from `Gross` (amount actually paid). Deposit/Withdrawal/Distribution rows are counted in `ignored`, not imported.
+  - All parsing goes through `parseCSVRows` (handles quoted fields, CRLF, BOM) — don't split lines on commas.
+- `splitNewTrades` — de-duplicates an import against existing data so a broker's full-history export can be re-imported: a buy matches a parcel, a sell matches a disposal, on same date + ticker with units within `UNITS_MATCH_TOLERANCE` (0.005, to allow manually rounded entries); closest match wins and each existing record matches once.
 - `isDiscountEligible` — the 12-month test (see tax rules below).
 
 ### Pages (`src/pages/`)
 Each page is a standalone component consuming `useAppState()`. Navigation is a `page` state in `App.tsx` (no router); unauthenticated users see **LoginPage**.
-- **TradesPage** — view/add/delete parcels and disposals
+- **TradesPage** — view/add/delete parcels and disposals; CSV import (preview shows detected format, skipped duplicates and ignored rows before confirming)
 - **PortfolioPage** — current holdings with live prices
 - **UnrealisedGainsPage** — unrealised P&L on current holdings, using live prices; Excel export via `src/lib/exportUnrealised.ts` (Unrealised Gains + CGT Summary sheets)
 - **CapitalGainsPage** — realised CGT summary by FY; Excel export via `src/lib/exportExcel.ts` (Summary, Parcel Detail, Parcel Register sheets with live formulas)
@@ -91,6 +94,9 @@ The linter stops at the first error per component, so fixing one can reveal more
 - Hook dependency lists must be simple identifiers: compute `const tickersKey = tickers.join(",")` first rather than inlining expressions.
 - Don't write `ref.current` during render — use `useLayoutEffect`.
 - `AppContext.tsx` has one deliberate `react-refresh/only-export-components` disable (it exports `useAppState` with the provider); editing it triggers a full reload in dev.
+
+### Privacy
+The GitHub repo is **public**. Never put real portfolio data (tickers held, dates, units, amounts, broker exports) in code, tests, commit messages or PR descriptions — use made-up tickers (e.g. `ABC`, `XYZ`) and numbers in test fixtures.
 
 ### Australian tax rules to be aware of
 - Financial year: 1 July – 30 June. `getFinancialYear("2024-07-01")` → `"FY2025"`.
