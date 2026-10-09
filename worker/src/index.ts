@@ -34,9 +34,9 @@ function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
-async function getCrumb(): Promise<CrumbData> {
+async function getCrumb(forceRefresh = false): Promise<CrumbData> {
   const now = Date.now();
-  if (crumbCache && now - crumbCache.fetchedAt < CRUMB_TTL_MS) {
+  if (!forceRefresh && crumbCache && now - crumbCache.fetchedAt < CRUMB_TTL_MS) {
     return crumbCache;
   }
 
@@ -71,14 +71,14 @@ async function getCrumb(): Promise<CrumbData> {
   return crumbCache;
 }
 
-async function fetchYahooQuotes(symbols: string[]): Promise<QuoteMap> {
-  const { crumb, cookie } = await getCrumb();
+async function requestQuotes(symbols: string[], forceRefreshCrumb: boolean): Promise<Response> {
+  const { crumb, cookie } = await getCrumb(forceRefreshCrumb);
 
   const url =
     `https://query2.finance.yahoo.com/v7/finance/quote` +
     `?symbols=${symbols.map(encodeURIComponent).join(',')}&crumb=${encodeURIComponent(crumb)}`;
 
-  const resp = await fetch(url, {
+  return fetch(url, {
     headers: {
       'User-Agent': UA,
       Accept: 'application/json, */*',
@@ -86,6 +86,16 @@ async function fetchYahooQuotes(symbols: string[]): Promise<QuoteMap> {
       Cookie: cookie,
     },
   });
+}
+
+async function fetchYahooQuotes(symbols: string[]): Promise<QuoteMap> {
+  let resp = await requestQuotes(symbols, false);
+
+  // Yahoo can invalidate a crumb before our TTL expires — retry once with a fresh one
+  if (resp.status === 401 || resp.status === 403) {
+    crumbCache = null;
+    resp = await requestQuotes(symbols, true);
+  }
 
   if (!resp.ok) throw new Error(`Yahoo Finance returned HTTP ${resp.status}`);
 
@@ -161,15 +171,18 @@ export default {
       result = Object.fromEntries(symbols.map((s) => [s, null]));
     }
 
+    // Only cache complete results — caching a failed/partial fetch would serve N/A prices for the full TTL
+    const complete = symbols.every((s) => result[s] != null);
+
     const response = new Response(JSON.stringify(result), {
       headers: {
         ...CORS_HEADERS,
         'Content-Type': 'application/json',
-        'Cache-Control': `public, max-age=${CACHE_TTL}`,
+        'Cache-Control': complete ? `public, max-age=${CACHE_TTL}` : 'no-store',
       },
     });
 
-    ctx.waitUntil(cache.put(new Request(cacheUrl), response.clone()));
+    if (complete) ctx.waitUntil(cache.put(new Request(cacheUrl), response.clone()));
     return response;
   },
 };
