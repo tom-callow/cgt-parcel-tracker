@@ -32,7 +32,7 @@ const C = {
 //  M  Adj Cost Base       FORMULA =K+L
 //  N  Parcel Proceeds     FORMULA =(J/H)*G
 //  O  Gross Gain/Loss     FORMULA =N-M
-//  P  Held >12 Months     FORMULA =IF(DATE(YEAR(I)+1,MONTH(I),DAY(I))<C,"Yes","No")
+//  P  Held >12 Months     FORMULA =IF(EDATE(I,12)<C,"Yes","No")  (EDATE clamps 29 Feb → 28 Feb)
 //  Q  CGT Discount Elig.  FORMULA =IF(AND(P="Yes",$B$5<>"company"),"Yes","No")
 //  R  Discount Amount     FORMULA =IF(AND(Q="Yes",O>0),O*$F$5,0)
 //  S  Net Taxable Gain    FORMULA =O-R
@@ -302,7 +302,7 @@ export function buildDetailSheet(
 
       row[DC.HELD]        = fStr(
         pu.discountEligible ? "Yes" : "No",
-        `IF(DATE(YEAR(${I_})+1,MONTH(${I_}),DAY(${I_}))<${C_},"Yes","No")`,
+        `IF(EDATE(${I_},12)<${C_},"Yes","No")`,
         { fill, center: true },
       )
       row[DC.DISC_ELIG]   = fStr(

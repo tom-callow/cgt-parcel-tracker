@@ -32,7 +32,9 @@ export function getFinancialYear(dateStr: string): string {
 
 // ── CGT discount eligibility ────────────────────────────────────────
 
-/** Held > 12 months (strictly more than). Exactly 12 months = NOT eligible. */
+/** Held > 12 months (strictly more than). Exactly 12 months = NOT eligible.
+ *  s115-25(1) ITAA 1997 / TD 2002/10: a clear 12 months must elapse, excluding the day of
+ *  acquisition and the day of the CGT event — so the first eligible day is anniversary + 1. */
 export function isDiscountEligible(
   acquisitionDate: string,
   disposalDate: string,
@@ -46,6 +48,9 @@ export function isDiscountEligible(
   // Add exactly 12 months to acquisition date
   const threshold = new Date(acq)
   threshold.setFullYear(threshold.getFullYear() + 1)
+  // 29 Feb has no anniversary in a non-leap year: JS rolls it to 1 Mar, but the 12-month period
+  // ends with the last day of February (Acts Interpretation Act s2G), so clamp back to 28 Feb
+  if (threshold.getMonth() !== acq.getMonth()) threshold.setDate(0)
 
   // Disposal must be strictly AFTER the 12-month anniversary
   return disp > threshold

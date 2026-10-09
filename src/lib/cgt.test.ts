@@ -106,11 +106,27 @@ describe("isDiscountEligible", () => {
     expect(isDiscountEligible("2023-01-15", "2024-01-16", "trust")).toBe(true)
   })
 
+  it("matches the ATO guide example: acquired 2 Feb 2006, eligible on or after 3 Feb 2007", () => {
+    expect(isDiscountEligible("2006-02-02", "2007-02-02", "individual")).toBe(false)
+    expect(isDiscountEligible("2006-02-02", "2007-02-03", "individual")).toBe(true)
+  })
+
   it("leap year edge case: 29 Feb acquisition", () => {
-    // 2024-02-29 + 12 months → 2025-03-01 (Feb has 28 days in 2025)
-    // Disposal on 2025-03-01 should be exactly at threshold, NOT eligible
-    expect(isDiscountEligible("2024-02-29", "2025-03-01", "individual")).toBe(false)
-    expect(isDiscountEligible("2024-02-29", "2025-03-02", "individual")).toBe(true)
+    // No 29 Feb in 2025, so the 12-month period ends on 28 Feb 2025 (Acts Interpretation Act s2G).
+    // 1 Mar 2024 – 28 Feb 2025 is a clear year, so a 1 Mar 2025 disposal is eligible.
+    expect(isDiscountEligible("2024-02-29", "2025-02-28", "individual")).toBe(false)
+    expect(isDiscountEligible("2024-02-29", "2025-03-01", "individual")).toBe(true)
+  })
+
+  it("28 Feb acquisition: anniversary stays 28 Feb even when the next year is a leap year", () => {
+    expect(isDiscountEligible("2027-02-28", "2028-02-28", "individual")).toBe(false)
+    expect(isDiscountEligible("2027-02-28", "2028-02-29", "individual")).toBe(true)
+  })
+
+  it("acquisition across a leap day uses the calendar anniversary, not 365 days", () => {
+    // 1 Mar 2023 → anniversary 1 Mar 2024 (366 days, includes 29 Feb 2024)
+    expect(isDiscountEligible("2023-03-01", "2024-03-01", "individual")).toBe(false)
+    expect(isDiscountEligible("2023-03-01", "2024-03-02", "individual")).toBe(true)
   })
 })
 
