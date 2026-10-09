@@ -73,7 +73,7 @@ All tax calculation lives here. Key functions:
 Each page is a standalone component consuming `useAppState()`. Navigation is a `page` state in `App.tsx` (no router); unauthenticated users see **LoginPage**.
 - **TradesPage** — view/add/delete parcels and disposals; CSV import (preview shows detected format, skipped duplicates and ignored rows before confirming)
 - **PortfolioPage** — current holdings with live prices
-- **UnrealisedGainsPage** — unrealised P&L on current holdings, using live prices; Excel export via `src/lib/exportUnrealised.ts` (Unrealised Gains + CGT Summary sheets)
+- **UnrealisedGainsPage** — unrealised P&L on current holdings, using live prices; Excel export via `src/lib/exportUnrealised.ts` (Unrealised Gains, CGT Summary, and AMIT Allocation — an audit trail of each AMIT adjustment's per-unit allocation to parcels with a reconciliation to statement totals; the main sheet's AMIT Adj/Unit column links to it, so keep its formulas mirroring `calcAmitAdjPerUnit`). All export dates are real Excel dates via `src/lib/excelDate.ts`
 - **CapitalGainsPage** — realised CGT summary by FY; Excel export via `src/lib/exportExcel.ts` (Summary, Parcel Detail, Parcel Register sheets with live formulas)
 - **TaxStatementsPage** — formatted tax statements for lodgement
 - **OptimiserPage** — preview disposal tax outcome across all three methods before committing
