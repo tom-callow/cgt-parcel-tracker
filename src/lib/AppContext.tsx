@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react"
 import type { Session } from "@supabase/supabase-js"
-import { supabase } from "./supabase"
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase"
 import type { AppData, EntityType, Parcel, Disposal, AmitAdjustment } from "./types"
 
 type Snapshot = { parcels: Parcel[]; disposals: Disposal[]; amitAdjustments: AmitAdjustment[] }
@@ -58,6 +58,24 @@ async function saveToSupabase(userId: string, data: AppData) {
     updated_at: new Date().toISOString(),
   })
   if (error) console.error("Supabase save error:", error)
+}
+
+// Used when the page is being hidden/closed. supabase-js requests are cancelled on unload, so this
+// calls the REST API directly with keepalive, which lets the request outlive the page.
+function saveOnPageHide(session: Session, data: AppData) {
+  const body = JSON.stringify({ id: session.user.id, data, updated_at: new Date().toISOString() })
+  fetch(`${SUPABASE_URL}/rest/v1/user_data?on_conflict=id`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session.access_token}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body,
+    // Browsers reject keepalive bodies over 64KB — fall back to a normal request (fine on tab switch)
+    keepalive: body.length < 60_000,
+  }).catch((err) => console.error("Supabase save error:", err))
 }
 
 function loadFromStorage(): AppData {
@@ -156,16 +174,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Auto-save to Supabase (debounced 1s), skipped while data is being loaded
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSaveRef = useRef<AppData | null>(null)
   useEffect(() => {
     if (!session || isLoadingRef.current) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    pendingSaveRef.current = { entityType, parcels, disposals, amitAdjustments, rebalanceTargets }
     saveTimerRef.current = setTimeout(() => {
-      saveToSupabase(session.user.id, { entityType, parcels, disposals, amitAdjustments, rebalanceTargets })
+      const data = pendingSaveRef.current
+      pendingSaveRef.current = null
+      if (data) saveToSupabase(session.user.id, data)
     }, 1000)
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
   }, [session, entityType, parcels, disposals, amitAdjustments, rebalanceTargets])
+
+  // Flush any pending debounced save immediately when the tab is hidden or closed
+  useEffect(() => {
+    if (!session) return
+    const flush = () => {
+      const data = pendingSaveRef.current
+      if (!data) return
+      pendingSaveRef.current = null
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveOnPageHide(session, data)
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    window.addEventListener("pagehide", flush)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      window.removeEventListener("pagehide", flush)
+    }
+  }, [session])
 
   function saveSnapshot() {
     const snap = { ...stateRef.current }
