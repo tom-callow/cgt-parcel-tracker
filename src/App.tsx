@@ -15,7 +15,7 @@ import { RebalancePage } from "./pages/RebalancePage"
 type Page = "trades" | "portfolio" | "unrealised" | "gains" | "tax" | "optimiser" | "amit" | "saveload" | "rebalance"
 
 function AppShell() {
-  const { authLoading, dataLoading, session } = useAppState()
+  const { authLoading, dataLoading, dataLoadError, retryDataLoad, session, signOut } = useAppState()
   const [page, setPage] = useState<Page>("trades")
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem("darkMode")
@@ -37,6 +37,34 @@ function AppShell() {
   }
 
   if (!session) return <LoginPage />
+
+  if (dataLoadError) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-sm text-center">
+          <p className="text-slate-100 font-medium mb-2">Couldn't load your data</p>
+          <p className="text-slate-400 text-sm mb-1">
+            Your saved data is safe — nothing has been changed. Check your connection and try again.
+          </p>
+          <p className="text-slate-500 text-xs mb-6">{dataLoadError}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={retryDataLoad}
+              className="bg-teal-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-teal-700"
+            >
+              Retry
+            </button>
+            <button
+              onClick={signOut}
+              className="bg-slate-700 text-slate-200 px-5 py-2 rounded text-sm font-medium hover:bg-slate-600"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (dataLoading) {
     return (

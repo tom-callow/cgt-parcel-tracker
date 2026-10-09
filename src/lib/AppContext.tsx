@@ -25,6 +25,8 @@ type AppState = AppData & {
   session: Session | null
   authLoading: boolean
   dataLoading: boolean
+  dataLoadError: string | null
+  retryDataLoad: () => void
   signOut: () => Promise<void>
 }
 
@@ -103,6 +105,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Whose data is currently loaded; data is "loading" whenever that isn't the signed-in user
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null)
   const dataLoading = session != null && loadedUserId !== session.user.id
+  // Set when loading fails; the app shows a retry screen and never saves until a load succeeds
+  const [dataLoadError, setDataLoadError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   const [entityType, setEntityTypeState] = useState<EntityType>(EMPTY.entityType)
   const [parcels, setParcels] = useState<Parcel[]>(EMPTY.parcels)
@@ -118,7 +123,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   })
 
   const historyRef = useRef<Snapshot[]>([])
-  const isLoadingRef = useRef(false)
 
   // Auth setup
   useEffect(() => {
@@ -145,7 +149,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Load data from Supabase when the user logs in
   useEffect(() => {
     if (!session) return
-    isLoadingRef.current = true
 
     supabase
       .from("user_data")
@@ -154,9 +157,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .maybeSingle()
       .then(({ data, error }) => {
         if (error) {
-          // Don't fall through to the localStorage migration — that would overwrite cloud data
+          // Don't fall through to the localStorage migration, and leave the data unloaded so
+          // auto-save stays blocked — saving the empty state would overwrite cloud data
           console.error("Supabase load error:", error)
-        } else if (data?.data) {
+          setDataLoadError(error.message)
+          return
+        }
+        if (data?.data) {
           const appData = data.data as AppData
           setEntityTypeState(appData.entityType ?? "individual")
           setParcels((appData.parcels ?? []).map(sanitiseParcel))
@@ -174,16 +181,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // Save migration immediately
           saveToSupabase(session.user.id, local)
         }
-        isLoadingRef.current = false
+        setDataLoadError(null)
         setLoadedUserId(session.user.id)
       })
-  }, [session?.user.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session?.user.id, loadAttempt]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-save to Supabase (debounced 1s), skipped while data is being loaded
+  const retryDataLoad = useCallback(() => {
+    setDataLoadError(null)
+    setLoadAttempt((n) => n + 1)
+  }, [])
+
+  // Auto-save to Supabase (debounced 1s). Only once this user's data has loaded successfully —
+  // otherwise we'd be saving the empty initial state over their cloud data.
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingSaveRef = useRef<AppData | null>(null)
   useEffect(() => {
-    if (!session || isLoadingRef.current) return
+    if (!session || dataLoading) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     pendingSaveRef.current = { entityType, parcels, disposals, amitAdjustments, rebalanceTargets }
     saveTimerRef.current = setTimeout(() => {
@@ -194,7 +207,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
-  }, [session, entityType, parcels, disposals, amitAdjustments, rebalanceTargets])
+  }, [session, dataLoading, entityType, parcels, disposals, amitAdjustments, rebalanceTargets])
 
   // Flush any pending debounced save immediately when the tab is hidden or closed
   useEffect(() => {
@@ -340,6 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const signOut = useCallback(async () => {
+    setDataLoadError(null)
     await supabase.auth.signOut()
   }, [])
 
@@ -370,6 +384,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         session,
         authLoading,
         dataLoading,
+        dataLoadError,
+        retryDataLoad,
         signOut,
       }}
     >
