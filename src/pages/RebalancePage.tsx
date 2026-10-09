@@ -41,13 +41,14 @@ export function RebalancePage() {
     refreshPrices()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-sync drafts when holdings change or targets change outside this page's inputs (e.g. undo)
   useEffect(() => {
     const draft: Record<string, string> = {}
     for (const t of tickers) {
       draft[t] = rebalanceTargets[t] != null ? String(rebalanceTargets[t]) : ""
     }
     setDraftTargets(draft)
-  }, [tickers.join(",")]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tickers.join(","), rebalanceTargets]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const allPricesLoaded = tickers.length > 0 && tickers.every((t) => prices[t] != null)
 

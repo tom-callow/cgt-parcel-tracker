@@ -3,7 +3,7 @@ import type { Session } from "@supabase/supabase-js"
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase"
 import type { AppData, EntityType, Parcel, Disposal, AmitAdjustment } from "./types"
 
-type Snapshot = { parcels: Parcel[]; disposals: Disposal[]; amitAdjustments: AmitAdjustment[] }
+type Snapshot = AppData
 
 type AppState = AppData & {
   setEntityType: (t: EntityType) => void
@@ -99,15 +99,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [authLoading, setAuthLoading] = useState(true)
   const [dataLoading, setDataLoading] = useState(false)
 
-  const [entityType, setEntityType] = useState<EntityType>(EMPTY.entityType)
+  const [entityType, setEntityTypeState] = useState<EntityType>(EMPTY.entityType)
   const [parcels, setParcels] = useState<Parcel[]>(EMPTY.parcels)
   const [disposals, setDisposals] = useState<Disposal[]>(EMPTY.disposals)
   const [amitAdjustments, setAmitAdjustments] = useState<AmitAdjustment[]>(EMPTY.amitAdjustments)
-  const [rebalanceTargets, setRebalanceTargets] = useState<Record<string, number>>(EMPTY.rebalanceTargets)
+  const [rebalanceTargets, setRebalanceTargetsState] = useState<Record<string, number>>(EMPTY.rebalanceTargets)
   const [canUndo, setCanUndo] = useState(false)
 
-  const stateRef = useRef<Snapshot>({ parcels, disposals, amitAdjustments })
-  stateRef.current = { parcels, disposals, amitAdjustments }
+  const stateRef = useRef<Snapshot>({ entityType, parcels, disposals, amitAdjustments, rebalanceTargets })
+  stateRef.current = { entityType, parcels, disposals, amitAdjustments, rebalanceTargets }
 
   const historyRef = useRef<Snapshot[]>([])
   const isLoadingRef = useRef(false)
@@ -151,19 +151,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           console.error("Supabase load error:", error)
         } else if (data?.data) {
           const appData = data.data as AppData
-          setEntityType(appData.entityType ?? "individual")
+          setEntityTypeState(appData.entityType ?? "individual")
           setParcels((appData.parcels ?? []).map(sanitiseParcel))
           setDisposals(appData.disposals ?? [])
           setAmitAdjustments(appData.amitAdjustments ?? [])
-          setRebalanceTargets(appData.rebalanceTargets ?? {})
+          setRebalanceTargetsState(appData.rebalanceTargets ?? {})
         } else {
           // No Supabase data yet — migrate from localStorage
           const local = loadFromStorage()
-          setEntityType(local.entityType)
+          setEntityTypeState(local.entityType)
           setParcels(local.parcels)
           setDisposals(local.disposals)
           setAmitAdjustments(local.amitAdjustments)
-          setRebalanceTargets(local.rebalanceTargets)
+          setRebalanceTargetsState(local.rebalanceTargets)
           // Save migration immediately
           saveToSupabase(session.user.id, local)
         }
@@ -220,9 +220,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const snap = historyRef.current.pop()
     setCanUndo(historyRef.current.length > 0)
     if (!snap) return
+    setEntityTypeState(snap.entityType)
     setParcels(snap.parcels)
     setDisposals(snap.disposals)
     setAmitAdjustments(snap.amitAdjustments)
+    setRebalanceTargetsState(snap.rebalanceTargets)
+  }, [])
+
+  const setEntityType = useCallback((t: EntityType) => {
+    if (t === stateRef.current.entityType) return
+    saveSnapshot()
+    setEntityTypeState(t)
+  }, [])
+
+  const setRebalanceTargets = useCallback((targets: Record<string, number>) => {
+    const current = stateRef.current.rebalanceTargets
+    const keys = new Set([...Object.keys(current), ...Object.keys(targets)])
+    if ([...keys].every((k) => current[k] === targets[k])) return
+    saveSnapshot()
+    setRebalanceTargetsState(targets)
   }, [])
 
   const addParcel = useCallback((p: Parcel) => {
@@ -303,11 +319,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const importData = useCallback((data: AppData) => {
-    setEntityType(data.entityType)
+    saveSnapshot()
+    setEntityTypeState(data.entityType)
     setParcels(data.parcels.map(sanitiseParcel))
     setDisposals(data.disposals)
     setAmitAdjustments(data.amitAdjustments ?? [])
-    setRebalanceTargets(data.rebalanceTargets ?? {})
+    setRebalanceTargetsState(data.rebalanceTargets ?? {})
   }, [])
 
   const exportData = useCallback(
