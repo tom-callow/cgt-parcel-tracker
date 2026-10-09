@@ -127,7 +127,7 @@ export function UnrealisedGainsPage() {
           <button
             onClick={async () => {
               const { exportUnrealisedGainsXLSX } = await import("../lib/exportUnrealised")
-              exportUnrealisedGainsXLSX(rows, entityType)
+              exportUnrealisedGainsXLSX(rows, entityType, amitAdjustments)
             }}
             disabled={rows.length === 0}
             className="bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"

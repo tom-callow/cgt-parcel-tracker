@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx-js-style"
 import type { Parcel, Disposal, AmitAdjustment, EntityType } from "./types"
 import { calcAmitAdjPerUnit, getFinancialYear, fmtDate } from "./cgt"
+import { toExcelDate } from "./excelDate"
 
 // ─── Colours ─────────────────────────────────────────────────────────────────
 
@@ -57,14 +58,6 @@ const D_FIRST_DATA = 8
 const MAX_ROW = 10000
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Convert ISO date string to Excel date serial number */
-function toExcelDate(isoDate: string): number {
-  const [y, m, d] = isoDate.split("-").map(Number)
-  const date  = new Date(Date.UTC(y, m - 1, d))
-  const epoch = new Date(Date.UTC(1899, 11, 30))  // Excel epoch: 1899-12-30
-  return Math.round((date.getTime() - epoch.getTime()) / 86_400_000)
-}
 
 /** Column letter(s) for a 0-indexed column */
 function colLetter(col: number): string {
