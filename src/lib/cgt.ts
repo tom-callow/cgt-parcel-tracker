@@ -522,16 +522,49 @@ function normaliseDate(raw: string): string {
   return s // return as-is and let validation catch it
 }
 
+/** Split CSV text into rows of fields. Handles quoted fields (with embedded commas, quotes
+ *  and newlines), CRLF line endings and a leading BOM. Blank lines are dropped. */
+export function parseCSVRows(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ""
+  let inQuotes = false
+  const src = text.replace(/^\uFEFF/, "")
+
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i]
+    if (inQuotes) {
+      if (ch === '"' && src[i + 1] === '"') { field += '"'; i++ }
+      else if (ch === '"') inQuotes = false
+      else field += ch
+    } else if (ch === '"') {
+      inQuotes = true
+    } else if (ch === ",") {
+      row.push(field.trim()); field = ""
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && src[i + 1] === "\n") i++
+      row.push(field.trim()); field = ""
+      if (row.some((f) => f !== "")) rows.push(row)
+      row = []
+    } else {
+      field += ch
+    }
+  }
+  row.push(field.trim())
+  if (row.some((f) => f !== "")) rows.push(row)
+  return rows
+}
+
 /** Strip currency symbols and thousands commas then parse as float. */
 function parseNumericField(raw: string): number {
   return parseFloat((raw ?? "").replace(/[$,\s]/g, ""))
 }
 
 export function parseTradesCSV(csv: string): CSVTrade[] {
-  const lines = csv.trim().split("\n")
-  if (lines.length < 2) return []
+  const rows = parseCSVRows(csv)
+  if (rows.length < 2) return []
 
-  const header = lines[0].toLowerCase().split(",").map((h) => h.trim())
+  const header = rows[0].map((h) => h.toLowerCase())
   const dateIdx = header.indexOf("date")
   const tickerIdx = header.indexOf("ticker")
   const typeIdx = header.indexOf("type")
@@ -545,8 +578,7 @@ export function parseTradesCSV(csv: string): CSVTrade[] {
     throw new Error("CSV must have columns: date, ticker, type, units, unit price, brokerage")
   }
 
-  return lines.slice(1).filter((l) => l.trim()).map((line) => {
-    const cols = line.split(",").map((c) => c.trim())
+  return rows.slice(1).map((cols) => {
     const type = cols[typeIdx].toLowerCase()
     if (type !== "buy" && type !== "sell") {
       throw new Error(`Invalid type "${cols[typeIdx]}" — must be "buy" or "sell"`)
@@ -560,4 +592,112 @@ export function parseTradesCSV(csv: string): CSVTrade[] {
       brokerage: brokerageIdx >= 0 ? parseNumericField(cols[brokerageIdx]) || 0 : 0,
     }
   })
+}
+
+// ── CSV import de-duplication ───────────────────────────────────────
+
+// Brokers export fractional units to 16 decimals, but manually entered trades are often rounded
+// (e.g. 12.3457 vs 12.3456789012345678). Allow anything up to 2-decimal rounding.
+const UNITS_MATCH_TOLERANCE = 0.005
+
+/** Split imported trades into ones not yet recorded and ones that already exist, so a broker's
+ *  full-history export can be re-imported safely. A buy matches a parcel, and a sell matches a
+ *  disposal, with the same date and ticker and units within rounding (closest match wins). Each
+ *  existing record matches at most one imported trade, so genuinely repeated trades on the same
+ *  day are still imported. */
+export function splitNewTrades(
+  trades: CSVTrade[],
+  parcels: Pick<Parcel, "date" | "ticker" | "units">[],
+  disposals: Pick<Disposal, "date" | "ticker" | "units">[],
+): { newTrades: CSVTrade[]; duplicates: CSVTrade[] } {
+  const unmatchedBuys = [...parcels]
+  const unmatchedSells = [...disposals]
+  const newTrades: CSVTrade[] = []
+  const duplicates: CSVTrade[] = []
+
+  for (const t of trades) {
+    const pool = t.type === "buy" ? unmatchedBuys : unmatchedSells
+    let i = -1
+    let bestDiff = Infinity
+    pool.forEach((r, j) => {
+      const diff = Math.abs(r.units - t.units)
+      if (r.date === t.date && r.ticker === t.ticker && diff <= UNITS_MATCH_TOLERANCE && diff < bestDiff) {
+        i = j
+        bestDiff = diff
+      }
+    })
+    if (i === -1) {
+      newTrades.push(t)
+    } else {
+      pool.splice(i, 1)
+      duplicates.push(t)
+    }
+  }
+  return { newTrades, duplicates }
+}
+
+// ── Import format detection ─────────────────────────────────────────
+
+export type CSVImport = {
+  format: "standard" | "betashares"
+  trades: CSVTrade[]
+  /** Non-trade rows that were skipped, by activity type (e.g. { Deposit: 3, Distribution: 2 }) */
+  ignored: Record<string, number>
+}
+
+/** Parse a Betashares Direct transactions export.
+ *  Columns: Effective Date (dd/mm/yyyy), Activity Type, Gross, Symbol (e.g. "ABC:AU"), Brokerage,
+ *  Price, Quantity, Details. Only Buy and Sell rows are trades; Deposit, Withdrawal, Distribution
+ *  etc. are reported in `ignored`. Sell quantities are negative and buy Gross amounts are negative.
+ *  Gross equals Price × Quantity to the cent (brokerage is separate and has always been blank), so
+ *  the unit price is derived from Gross — it's the amount actually paid or received. */
+export function parseBetasharesCSV(csv: string): { trades: CSVTrade[]; ignored: Record<string, number> } {
+  const rows = parseCSVRows(csv)
+  const header = rows[0].map((h) => h.toLowerCase())
+  const col = (name: string) => {
+    const i = header.indexOf(name)
+    if (i === -1) throw new Error(`Betashares CSV is missing the "${name}" column`)
+    return i
+  }
+  const dateIdx = col("effective date")
+  const typeIdx = col("activity type")
+  const grossIdx = col("gross")
+  const symbolIdx = col("symbol")
+  const qtyIdx = col("quantity")
+  const brokerageIdx = header.indexOf("brokerage")
+
+  const trades: CSVTrade[] = []
+  const ignored: Record<string, number> = {}
+  for (const cols of rows.slice(1)) {
+    const activity = cols[typeIdx]
+    const type = activity.toLowerCase()
+    if (type !== "buy" && type !== "sell") {
+      ignored[activity] = (ignored[activity] ?? 0) + 1
+      continue
+    }
+    const units = Math.abs(parseNumericField(cols[qtyIdx]))
+    const gross = Math.abs(parseNumericField(cols[grossIdx]))
+    if (!(units > 0) || !isFinite(gross)) {
+      throw new Error(`Invalid ${activity} row on ${cols[dateIdx]}: quantity "${cols[qtyIdx]}", gross "${cols[grossIdx]}"`)
+    }
+    trades.push({
+      date: normaliseDate(cols[dateIdx]),
+      ticker: cols[symbolIdx].split(":")[0].trim().toUpperCase(),
+      type,
+      units,
+      unitPrice: gross / units,
+      brokerage: brokerageIdx >= 0 ? parseNumericField(cols[brokerageIdx]) || 0 : 0,
+    })
+  }
+  return { trades, ignored }
+}
+
+/** Parse an imported trades CSV, detecting whether it's a Betashares Direct export or the
+ *  standard date/ticker/type/units/unit price/brokerage format. */
+export function parseImportCSV(csv: string): CSVImport {
+  const header = (parseCSVRows(csv)[0] ?? []).map((h) => h.toLowerCase())
+  if (header.includes("effective date") && header.includes("activity type")) {
+    return { format: "betashares", ...parseBetasharesCSV(csv) }
+  }
+  return { format: "standard", trades: parseTradesCSV(csv), ignored: {} }
 }

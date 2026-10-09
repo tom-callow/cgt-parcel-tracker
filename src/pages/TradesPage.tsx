@@ -1,6 +1,6 @@
 import { useState, useRef } from "react"
 import { useAppState } from "../lib/AppContext"
-import { createParcel, executeDisposal, executeManualDisposal, parseTradesCSV, fmtDate } from "../lib/cgt"
+import { createParcel, executeDisposal, executeManualDisposal, parseImportCSV, splitNewTrades, fmtDate, type CSVImport } from "../lib/cgt"
 import type { Parcel, Disposal } from "../lib/types"
 import { fmt, byDate, uniqueTickers } from "../lib/formatters"
 
@@ -32,7 +32,14 @@ export function TradesPage() {
     | { status: "ok";    type: "buy";  ticker: string; date: string; units: number; unitPrice: number; brokerage: number; amount: number }
     | { status: "ok";    type: "sell"; ticker: string; date: string; units: number; unitPrice: number; brokerage: number; proceeds: number; disposal: Disposal }
     | { status: "error"; type: "buy" | "sell"; ticker: string; date: string; units: number; unitPrice: number; brokerage: number; error: string }
-  type CSVPreview = { results: TradeResult[]; finalParcels: Parcel[]; newDisposals: Disposal[] }
+  type CSVPreview = {
+    results: TradeResult[]
+    finalParcels: Parcel[]
+    newDisposals: Disposal[]
+    format: CSVImport["format"]
+    alreadyRecorded: number
+    ignored: CSVImport["ignored"]
+  }
   const [csvPreview, setCSVPreview] = useState<CSVPreview | null>(null)
 
   const tickers = uniqueTickers(state.parcels)
@@ -147,7 +154,10 @@ export function TradesPage() {
     const reader = new FileReader()
     reader.onload = () => {
       try {
-        const trades = parseTradesCSV(reader.result as string)
+        const parsed = parseImportCSV(reader.result as string)
+        // Skip trades already in the tracker so a broker's full-history export can be re-imported
+        const { newTrades, duplicates } = splitNewTrades(parsed.trades, state.parcels, state.disposals)
+        const trades = newTrades
           .sort((a, b) => a.date.localeCompare(b.date) || (a.type === "buy" ? -1 : 1))
 
         let workingParcels = [...state.parcels]
@@ -173,7 +183,10 @@ export function TradesPage() {
           }
         }
 
-        setCSVPreview({ results, finalParcels: workingParcels, newDisposals })
+        setCSVPreview({
+          results, finalParcels: workingParcels, newDisposals,
+          format: parsed.format, alreadyRecorded: duplicates.length, ignored: parsed.ignored,
+        })
         setCSVError("")
         setCSVSuccess("")
       } catch (err) {
@@ -188,7 +201,7 @@ export function TradesPage() {
   function handleConfirmImport() {
     if (!csvPreview) return
     const hasErrors = csvPreview.results.some((r) => r.status === "error")
-    if (hasErrors) return
+    if (hasErrors || csvPreview.results.length === 0) return
     state.applyCSVImport(csvPreview.finalParcels, csvPreview.newDisposals)
     const count = csvPreview.results.length
     setCSVSuccess(`Successfully imported ${count} trade${count !== 1 ? "s" : ""}.`)
@@ -227,8 +240,9 @@ export function TradesPage() {
           {!csvPreview ? (
             <>
               <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                Your CSV file must include the following columns. The header row is required.
-                Rows are sorted by date before processing.
+                Import a <span className="font-medium">Betashares Direct</span> transactions export as-is, or a CSV
+                with the columns below. Rows are sorted by date before processing, and trades already in the
+                tracker are skipped, so you can safely re-import a full-history export.
               </p>
               <div className="flex items-center gap-3 mb-4">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">Sell matching method</label>
@@ -312,13 +326,26 @@ export function TradesPage() {
                 const hasErrors = csvPreview.results.some((r) => r.status === "error")
                 const buys = csvPreview.results.filter((r) => r.type === "buy").length
                 const sells = csvPreview.results.filter((r) => r.type === "sell").length
+                const nothingNew = csvPreview.results.length === 0
+                const ignoredSummary = Object.entries(csvPreview.ignored)
+                  .map(([type, n]) => `${type} ×${n}`)
+                  .join(", ")
                 return (
                   <>
-                    <div className="flex items-center gap-3 mb-4">
+                    {csvPreview.format === "betashares" && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Betashares Direct export detected.</p>
+                    )}
+                    <div className="flex items-center gap-3 mb-2">
                       <span className="text-sm text-slate-600 dark:text-slate-400">
-                        {csvPreview.results.length} trade{csvPreview.results.length !== 1 ? "s" : ""} parsed —{" "}
-                        <span className="text-emerald-700 font-medium">{buys} buy{buys !== 1 ? "s" : ""}</span>,{" "}
-                        <span className="text-red-600 font-medium">{sells} sell{sells !== 1 ? "s" : ""}</span>
+                        {nothingNew ? (
+                          <span className="font-medium">Nothing new to import.</span>
+                        ) : (
+                          <>
+                            {csvPreview.results.length} new trade{csvPreview.results.length !== 1 ? "s" : ""} —{" "}
+                            <span className="text-emerald-700 font-medium">{buys} buy{buys !== 1 ? "s" : ""}</span>,{" "}
+                            <span className="text-red-600 font-medium">{sells} sell{sells !== 1 ? "s" : ""}</span>
+                          </>
+                        )}
                       </span>
                       {hasErrors && (
                         <span className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded">
@@ -326,8 +353,19 @@ export function TradesPage() {
                         </span>
                       )}
                     </div>
+                    {(csvPreview.alreadyRecorded > 0 || ignoredSummary) && (
+                      <ul className="text-xs text-slate-500 dark:text-slate-400 mb-4 space-y-0.5">
+                        {csvPreview.alreadyRecorded > 0 && (
+                          <li>
+                            Skipped {csvPreview.alreadyRecorded} trade{csvPreview.alreadyRecorded !== 1 ? "s" : ""} already in the tracker
+                            (same date, ticker and units).
+                          </li>
+                        )}
+                        {ignoredSummary && <li>Ignored non-trade rows: {ignoredSummary}.</li>}
+                      </ul>
+                    )}
 
-                    <div className="border border-slate-200 dark:border-slate-600 rounded overflow-hidden mb-5">
+                    {!nothingNew && <div className="border border-slate-200 dark:border-slate-600 rounded overflow-hidden mb-5">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -374,12 +412,12 @@ export function TradesPage() {
                           ))}
                         </tbody>
                       </table>
-                    </div>
+                    </div>}
 
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleConfirmImport}
-                        disabled={hasErrors}
+                        disabled={hasErrors || nothingNew}
                         className="bg-teal-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Confirm Import

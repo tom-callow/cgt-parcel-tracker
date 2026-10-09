@@ -8,6 +8,11 @@ import {
   executeDisposal,
   computeFYSummary,
   parseTradesCSV,
+  parseCSVRows,
+  parseBetasharesCSV,
+  parseImportCSV,
+  splitNewTrades,
+  type CSVTrade,
 } from "./cgt"
 import type { Parcel, Disposal } from "./types"
 
@@ -445,5 +450,120 @@ describe("parseTradesCSV", () => {
 2024-01-15,VAS,hold,100,80.50`
 
     expect(() => parseTradesCSV(csv)).toThrow('Invalid type')
+  })
+})
+
+describe("parseCSVRows", () => {
+  it("handles quoted fields with commas, escaped quotes, CRLF, BOM and blank lines", () => {
+    const text = '\uFEFFa,b,c\r\n1,"x, y","say ""hi"""\r\n\r\n2,,""\n'
+    expect(parseCSVRows(text)).toEqual([
+      ["a", "b", "c"],
+      ["1", "x, y", 'say "hi"'],
+      ["2", "", ""],
+    ])
+  })
+
+  it("lets the standard importer read quoted fields", () => {
+    const csv = 'date,ticker,type,units,unit price,brokerage\n2024-01-15,VAS,buy,"1,000","$80.50",0'
+    const [t] = parseTradesCSV(csv)
+    expect(t.units).toBe(1000)
+    expect(t.unitPrice).toBe(80.5)
+  })
+})
+
+// Made-up rows in the exact Betashares Direct export format (newest first, negative sell quantities,
+// negative buy Gross, float noise in Gross, blank Brokerage, quoted empty Details)
+const BETASHARES_CSV = `Effective Date,Activity Type,Gross,Symbol,Brokerage,Price,Quantity,Details
+15/03/2025,Distribution,$123.4567890123,,,,,""
+10/03/2025,Sell,$5299.999999999999,ABC:AU,,$53.00,-100.0000000000000000,""
+02/03/2025,Buy,-$2000.000000000004,XYZ:AU,,$123.45,16.2008910490077000,""
+01/03/2025,Deposit,$2000.00,,,,,""
+05/02/2024,Buy,-$5000.00,ABC:AU,,$50.00,100.0000000000000000,""
+04/02/2024,Withdrawal,-$100.00,,,,,""
+`
+
+describe("parseBetasharesCSV", () => {
+  const { trades, ignored } = parseBetasharesCSV(BETASHARES_CSV)
+
+  it("keeps only buys and sells and counts the other rows", () => {
+    expect(trades.map((t) => t.type)).toEqual(["sell", "buy", "buy"])
+    expect(ignored).toEqual({ Distribution: 1, Deposit: 1, Withdrawal: 1 })
+  })
+
+  it("converts dates, strips the :AU suffix and makes sell quantities positive", () => {
+    const sell = trades[0]
+    expect(sell).toMatchObject({ date: "2025-03-10", ticker: "ABC", type: "sell", units: 100, brokerage: 0 })
+  })
+
+  it("derives the unit price from Gross so cost base equals the amount paid", () => {
+    const buy = trades[1]
+    expect(buy.ticker).toBe("XYZ")
+    expect(buy.units).toBeCloseTo(16.2008910490077, 12)
+    expect(buy.units * buy.unitPrice).toBeCloseTo(2000, 6)
+    expect(trades[0].units * trades[0].unitPrice).toBeCloseTo(5300, 6)
+  })
+
+  it("rejects a trade row with no quantity", () => {
+    const bad = BETASHARES_CSV.replace("16.2008910490077000", "")
+    expect(() => parseBetasharesCSV(bad)).toThrow("Invalid Buy row")
+  })
+})
+
+describe("parseImportCSV", () => {
+  it("detects a Betashares export", () => {
+    const result = parseImportCSV(BETASHARES_CSV)
+    expect(result.format).toBe("betashares")
+    expect(result.trades).toHaveLength(3)
+  })
+
+  it("falls back to the standard format", () => {
+    const result = parseImportCSV("date,ticker,type,units,unit price\n2024-01-15,VAS,buy,100,80.50")
+    expect(result).toMatchObject({ format: "standard", ignored: {} })
+    expect(result.trades).toHaveLength(1)
+  })
+})
+
+describe("splitNewTrades", () => {
+  const trade = (date: string, ticker: string, type: "buy" | "sell", units: number): CSVTrade =>
+    ({ date, ticker, type, units, unitPrice: 1, brokerage: 0 })
+
+  it("skips buys already recorded, matching units within manual rounding", () => {
+    const { newTrades, duplicates } = splitNewTrades(
+      [trade("2025-03-02", "XYZ", "buy", 12.34567890123456), trade("2025-03-09", "XYZ", "buy", 7.654321098765432)],
+      [{ date: "2025-03-02", ticker: "XYZ", units: 12.3457 }],
+      [],
+    )
+    expect(duplicates).toHaveLength(1)
+    expect(newTrades.map((t) => t.date)).toEqual(["2025-03-09"])
+  })
+
+  it("matches sells against disposals, not parcels", () => {
+    const sell = trade("2025-05-01", "ABC", "sell", 100)
+    expect(splitNewTrades([sell], [{ date: "2025-05-01", ticker: "ABC", units: 100 }], []).newTrades).toHaveLength(1)
+    expect(splitNewTrades([sell], [], [{ date: "2025-05-01", ticker: "ABC", units: 100 }]).duplicates).toHaveLength(1)
+  })
+
+  it("matches each existing record once, so repeated same-day trades still import", () => {
+    const t = trade("2025-05-01", "XYZ", "buy", 10)
+    const { newTrades, duplicates } = splitNewTrades([t, { ...t }], [{ date: "2025-05-01", ticker: "XYZ", units: 10 }], [])
+    expect(duplicates).toHaveLength(1)
+    expect(newTrades).toHaveLength(1)
+  })
+
+  it("pairs same-day trades with the closest existing units", () => {
+    const { duplicates, newTrades } = splitNewTrades(
+      [trade("2025-05-01", "XYZ", "buy", 20.12345678), trade("2025-05-01", "XYZ", "buy", 300)],
+      [{ date: "2025-05-01", ticker: "XYZ", units: 300 }, { date: "2025-05-01", ticker: "XYZ", units: 20.1235 }],
+      [],
+    )
+    expect(duplicates).toHaveLength(2)
+    expect(newTrades).toHaveLength(0)
+  })
+
+  it("does not treat a different date, ticker or clearly different units as a duplicate", () => {
+    const existing = [{ date: "2025-05-01", ticker: "XYZ", units: 10 }]
+    expect(splitNewTrades([trade("2025-05-02", "XYZ", "buy", 10)], existing, []).newTrades).toHaveLength(1)
+    expect(splitNewTrades([trade("2025-05-01", "ABC", "buy", 10)], existing, []).newTrades).toHaveLength(1)
+    expect(splitNewTrades([trade("2025-05-01", "XYZ", "buy", 10.01)], existing, []).newTrades).toHaveLength(1)
   })
 })
