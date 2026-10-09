@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
 import * as XLSX from "xlsx-js-style"
 import { useAppState } from "../lib/AppContext"
 import { fmtDate, isDiscountEligible, calcAmitAdjPerUnit } from "../lib/cgt"
 
-import { fetchPrices } from "../lib/marketData"
+import { useLivePrices } from "../lib/useLivePrices"
 import { fmt } from "../lib/formatters"
 
 type GainsRow = {
@@ -198,11 +198,32 @@ function exportToExcel(rows: GainsRow[], entityType: string) {
 
 type SortCol = "ticker" | "acquired" | "units" | "costPerUnit" | "costBase" | "adjCostBase" | "marketPrice" | "currentValue" | "unrealisedGain" | "discount" | "effectiveGain"
 
+function SortHeader({ col, label, right, sortCol, sortDir, onSort }: {
+  col: SortCol
+  label: string
+  right?: boolean
+  sortCol: SortCol
+  sortDir: "asc" | "desc"
+  onSort: (col: SortCol) => void
+}) {
+  const active = sortCol === col
+  return (
+    <th
+      className={`px-3 py-3 cursor-pointer select-none group hover:text-slate-700 dark:hover:text-slate-200`}
+      onClick={() => onSort(col)}
+    >
+      <div className={`flex items-center gap-1 ${right ? "justify-end" : "justify-start"}`}>
+        <span>{label}</span>
+        <span className={active ? "text-teal-500" : "opacity-0 group-hover:opacity-30"}>
+          {active ? (sortDir === "asc" ? "▲" : "▼") : "▲"}
+        </span>
+      </div>
+    </th>
+  )
+}
+
 export function UnrealisedGainsPage() {
   const { parcels, entityType, amitAdjustments } = useAppState()
-  const [prices, setPrices] = useState<Record<string, number | null>>({})
-  const [loading, setLoading] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [sortCol, setSortCol] = useState<SortCol>("ticker")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
 
@@ -215,40 +236,11 @@ export function UnrealisedGainsPage() {
     }
   }
 
-  function SortHeader({ col, label, right }: { col: SortCol; label: string; right?: boolean }) {
-    const active = sortCol === col
-    return (
-      <th
-        className={`px-3 py-3 cursor-pointer select-none group hover:text-slate-700 dark:hover:text-slate-200`}
-        onClick={() => handleSort(col)}
-      >
-        <div className={`flex items-center gap-1 ${right ? "justify-end" : "justify-start"}`}>
-          <span>{label}</span>
-          <span className={active ? "text-teal-500" : "opacity-0 group-hover:opacity-30"}>
-            {active ? (sortDir === "asc" ? "▲" : "▼") : "▲"}
-          </span>
-        </div>
-      </th>
-    )
-  }
-
   const today = new Date().toISOString().slice(0, 10)
 
   const activeParcels = parcels.filter((p) => p.unitsRemaining > 0)
   const tickers = [...new Set(activeParcels.map((p) => p.ticker))]
-
-  const refreshPrices = useCallback(async () => {
-    if (tickers.length === 0) return
-    setLoading(true)
-    const results = await fetchPrices(tickers)
-    setPrices(results)
-    setLastUpdated(new Date())
-    setLoading(false)
-  }, [tickers.join(",")])  // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    refreshPrices()
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  const { prices, loading, lastUpdated, refresh: refreshPrices } = useLivePrices(tickers)
 
   // Build per-parcel rows
   const rows: GainsRow[] = activeParcels
@@ -348,17 +340,17 @@ export function UnrealisedGainsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <SortHeader col="ticker" label="Ticker" />
-                <SortHeader col="acquired" label="Acquired" />
-                <SortHeader col="units" label="Units" right />
-                <SortHeader col="costPerUnit" label="Cost / Unit" right />
-                <SortHeader col="costBase" label="Cost Base" right />
-                <SortHeader col="adjCostBase" label="Adj Cost Base" right />
-                <SortHeader col="marketPrice" label="Market Price" right />
-                <SortHeader col="currentValue" label="Current Value" right />
-                <SortHeader col="unrealisedGain" label="Unrealised Gain" right />
-                <SortHeader col="discount" label="Discount?" right />
-                <SortHeader col="effectiveGain" label="Effective Gain" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="ticker" label="Ticker" />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="acquired" label="Acquired" />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="units" label="Units" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="costPerUnit" label="Cost / Unit" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="costBase" label="Cost Base" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="adjCostBase" label="Adj Cost Base" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="marketPrice" label="Market Price" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="currentValue" label="Current Value" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="unrealisedGain" label="Unrealised Gain" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="discount" label="Discount?" right />
+                <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="effectiveGain" label="Effective Gain" right />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">

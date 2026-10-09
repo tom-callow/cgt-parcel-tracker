@@ -1,14 +1,11 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 
-import { fetchPrices } from "../lib/marketData"
+import { useLivePrices } from "../lib/useLivePrices"
 import { fmt, fmtPct } from "../lib/formatters"
 
 export function RebalancePage() {
   const { parcels, rebalanceTargets, setRebalanceTargets } = useAppState()
-  const [prices, setPrices] = useState<Record<string, number | null>>({})
-  const [loading, setLoading] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [investmentAmount, setInvestmentAmount] = useState("")
   const [draftTargets, setDraftTargets] = useState<Record<string, string>>({})
 
@@ -27,28 +24,12 @@ export function RebalancePage() {
   })()
 
   const tickers = holdings.map((h) => h.ticker)
+  const { prices, loading, lastUpdated, refresh: refreshPrices } = useLivePrices(tickers)
 
-  const refreshPrices = useCallback(async () => {
-    if (tickers.length === 0) return
-    setLoading(true)
-    const results = await fetchPrices(tickers)
-    setPrices(results)
-    setLastUpdated(new Date())
-    setLoading(false)
-  }, [tickers.join(",")]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    refreshPrices()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Re-sync drafts when holdings change or targets change outside this page's inputs (e.g. undo)
-  useEffect(() => {
-    const draft: Record<string, string> = {}
-    for (const t of tickers) {
-      draft[t] = rebalanceTargets[t] != null ? String(rebalanceTargets[t]) : ""
-    }
-    setDraftTargets(draft)
-  }, [tickers.join(","), rebalanceTargets]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Inputs show the saved target unless mid-edit — draftTargets only holds in-progress edits,
+  // so changes from elsewhere (e.g. undo) show up without any syncing
+  const targetText = (t: string) =>
+    draftTargets[t] ?? (rebalanceTargets[t] != null ? String(rebalanceTargets[t]) : "")
 
   const allPricesLoaded = tickers.length > 0 && tickers.every((t) => prices[t] != null)
 
@@ -61,11 +42,11 @@ export function RebalancePage() {
   const totalCurrentValue = Object.values(currentValues).reduce((s, v) => s + v, 0)
 
   const targetSum = tickers.reduce((s, t) => {
-    const v = parseFloat(draftTargets[t] ?? "")
+    const v = parseFloat(targetText(t))
     return s + (isNaN(v) ? 0 : v)
   }, 0)
   const targetsComplete = tickers.every((t) => {
-    const v = parseFloat(draftTargets[t] ?? "")
+    const v = parseFloat(targetText(t))
     return !isNaN(v)
   })
   const targetsSumTo100 = Math.abs(targetSum - 100) < 0.01
@@ -81,7 +62,7 @@ export function RebalancePage() {
     const deficits = tickers
       .map((t) => ({
         ticker: t,
-        deficit: Math.max(0, (parseFloat(draftTargets[t]) / 100) * newTotal - currentValues[t]),
+        deficit: Math.max(0, (parseFloat(targetText(t)) / 100) * newTotal - currentValues[t]),
       }))
       .filter((d) => d.deficit > 0)
     const totalDeficit = deficits.reduce((s, d) => s + d.deficit, 0)
@@ -95,16 +76,16 @@ export function RebalancePage() {
   }
 
   function handleTargetBlur(ticker: string) {
-    const raw = draftTargets[ticker] ?? ""
-    const parsed = parseFloat(raw)
+    const parsed = parseFloat(targetText(ticker))
     if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
       setRebalanceTargets({ ...rebalanceTargets, [ticker]: parsed })
-    } else {
-      setDraftTargets((prev) => ({
-        ...prev,
-        [ticker]: rebalanceTargets[ticker] != null ? String(rebalanceTargets[ticker]) : "",
-      }))
     }
+    // Drop the draft either way: a valid value is now saved, an invalid one reverts to the saved value
+    setDraftTargets((prev) => {
+      const next = { ...prev }
+      delete next[ticker]
+      return next
+    })
   }
 
   if (holdings.length === 0) {
@@ -178,7 +159,7 @@ export function RebalancePage() {
               const currentPct = totalCurrentValue > 0 && currentValue != null
                 ? (currentValue / totalCurrentValue) * 100
                 : null
-              const targetPct = parseFloat(draftTargets[h.ticker] ?? "")
+              const targetPct = parseFloat(targetText(h.ticker))
               const variance = currentPct != null && !isNaN(targetPct)
                 ? currentPct - targetPct
                 : null
@@ -211,7 +192,7 @@ export function RebalancePage() {
                         min="0"
                         max="100"
                         step="0.1"
-                        value={draftTargets[h.ticker] ?? ""}
+                        value={targetText(h.ticker)}
                         onChange={(e) =>
                           setDraftTargets((prev) => ({ ...prev, [h.ticker]: e.target.value }))
                         }
@@ -282,7 +263,7 @@ export function RebalancePage() {
               to{" "}
               <span className="font-semibold">{fmtPct(recommendation[0].resultingPct)}</span>
               {" "}(target:{" "}
-              <span className="font-semibold">{fmtPct(parseFloat(draftTargets[recommendation[0].ticker]))}</span>
+              <span className="font-semibold">{fmtPct(parseFloat(targetText(recommendation[0].ticker)))}</span>
               ).
             </p>
           ) : (
@@ -311,7 +292,7 @@ export function RebalancePage() {
                         {fmtPct((currentValues[ticker] / totalCurrentValue) * 100)}
                       </td>
                       <td className="py-2 text-right font-semibold text-teal-900 dark:text-teal-200">{fmtPct(resultingPct)}</td>
-                      <td className="py-2 text-right text-teal-700 dark:text-teal-400">{fmtPct(parseFloat(draftTargets[ticker]))}</td>
+                      <td className="py-2 text-right text-teal-700 dark:text-teal-400">{fmtPct(parseFloat(targetText(ticker)))}</td>
                     </tr>
                   ))}
                 </tbody>

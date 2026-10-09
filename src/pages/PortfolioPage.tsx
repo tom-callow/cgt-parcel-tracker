@@ -1,14 +1,10 @@
-import { useState, useEffect, useCallback } from "react"
+import { useLivePrices } from "../lib/useLivePrices"
 import { useAppState } from "../lib/AppContext"
 
-import { fetchPrices } from "../lib/marketData"
 import { fmt } from "../lib/formatters"
 
 export function PortfolioPage() {
   const { parcels } = useAppState()
-  const [prices, setPrices] = useState<Record<string, number | null>>({})
-  const [loading, setLoading] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   const holdings = (() => {
     const byTicker = new Map<string, { units: number; costBase: number }>()
@@ -29,18 +25,8 @@ export function PortfolioPage() {
       .sort((a, b) => a.ticker.localeCompare(b.ticker))
   })()
 
-  const refreshPrices = useCallback(async () => {
-    if (holdings.length === 0) return
-    setLoading(true)
-    const results = await fetchPrices(holdings.map((h) => h.ticker))
-    setPrices(results)
-    setLastUpdated(new Date())
-    setLoading(false)
-  }, [holdings.map(h => h.ticker).join(",")])  // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    refreshPrices()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const tickers = holdings.map((h) => h.ticker)
+  const { prices, loading, lastUpdated, refresh: refreshPrices } = useLivePrices(tickers)
 
   const totalCostBase = holdings.reduce((s, h) => s + h.costBase, 0)
   const totalMarketValue = holdings.reduce((s, h) => {

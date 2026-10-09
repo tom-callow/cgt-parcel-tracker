@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, useLayoutEffect, useRef, type ReactNode } from "react"
 import type { Session } from "@supabase/supabase-js"
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase"
 import type { AppData, EntityType, Parcel, Disposal, AmitAdjustment } from "./types"
@@ -30,6 +30,9 @@ type AppState = AppData & {
 
 const AppContext = createContext<AppState | null>(null)
 
+// Exporting the hook alongside AppProvider only means edits to this file trigger a full reload
+// instead of a hot update; splitting it out would mean changing every page's import.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAppState() {
   const ctx = useContext(AppContext)
   if (!ctx) throw new Error("useAppState must be inside AppProvider")
@@ -97,7 +100,9 @@ function loadFromStorage(): AppData {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [dataLoading, setDataLoading] = useState(false)
+  // Whose data is currently loaded; data is "loading" whenever that isn't the signed-in user
+  const [loadedUserId, setLoadedUserId] = useState<string | null>(null)
+  const dataLoading = session != null && loadedUserId !== session.user.id
 
   const [entityType, setEntityTypeState] = useState<EntityType>(EMPTY.entityType)
   const [parcels, setParcels] = useState<Parcel[]>(EMPTY.parcels)
@@ -107,7 +112,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [canUndo, setCanUndo] = useState(false)
 
   const stateRef = useRef<Snapshot>({ entityType, parcels, disposals, amitAdjustments, rebalanceTargets })
-  stateRef.current = { entityType, parcels, disposals, amitAdjustments, rebalanceTargets }
+  // Keep the ref current for mutation callbacks; layout effects run before any event handler can fire
+  useLayoutEffect(() => {
+    stateRef.current = { entityType, parcels, disposals, amitAdjustments, rebalanceTargets }
+  })
 
   const historyRef = useRef<Snapshot[]>([])
   const isLoadingRef = useRef(false)
@@ -138,7 +146,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session) return
     isLoadingRef.current = true
-    setDataLoading(true)
 
     supabase
       .from("user_data")
@@ -168,7 +175,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           saveToSupabase(session.user.id, local)
         }
         isLoadingRef.current = false
-        setDataLoading(false)
+        setLoadedUserId(session.user.id)
       })
   }, [session?.user.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
