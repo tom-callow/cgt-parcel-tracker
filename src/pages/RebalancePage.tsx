@@ -101,9 +101,9 @@ export function RebalancePage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Rebalancing</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {lastUpdated && (
             <span className="text-xs text-slate-400">
               Updated {lastUpdated.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}
@@ -120,7 +120,7 @@ export function RebalancePage() {
       </div>
 
       {/* Investment amount input */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4 mb-4 flex items-center gap-4">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4 mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <label className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
           Amount to invest
         </label>
@@ -142,8 +142,8 @@ export function RebalancePage() {
       </div>
 
       {/* Allocation table */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden mb-4">
-        <table className="w-full text-sm">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto mb-4">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               <th className="px-4 py-3">Ticker</th>
@@ -273,7 +273,7 @@ export function RebalancePage() {
                 <span className="font-semibold">${fmt(investAmt)}</span>{" "}
                 investment as follows to reach your target allocations:
               </p>
-              <table className="w-full text-sm">
+              <table className="w-full text-sm whitespace-nowrap">
                 <thead>
                   <tr className="text-xs font-medium text-teal-700 dark:text-teal-400 uppercase tracking-wider border-b border-teal-200 dark:border-teal-800">
                     <th className="pb-2 text-left">Ticker</th>

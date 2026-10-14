@@ -38,7 +38,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
+    <div className="relative flex-1 min-h-dvh bg-slate-100 dark:bg-slate-900 flex items-center justify-center py-12">
       <button
         onClick={() => setDarkMode((d) => !d)}
         className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white text-lg transition-colors"

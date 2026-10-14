@@ -25,7 +25,7 @@ const gainCls = (n: number) => (n > 0.005 ? "text-emerald-700 dark:text-emerald-
 function PlanDetail({ plan, showTargets }: { plan: WithdrawalPlan; showTargets: boolean }) {
   return (
     <>
-      <div className="grid grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
         {[
           ["Cash received", `$${fmt(plan.netProceeds)}`, ""],
           ["Net taxable gain", `$${fmt(plan.totalTaxableGain)}`, gainCls(plan.totalTaxableGain)],
@@ -45,7 +45,7 @@ function PlanDetail({ plan, showTargets }: { plan: WithdrawalPlan; showTargets: 
       )}
 
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-x-auto mb-4">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-700 text-left">
               <th className={thCls}>Sell</th>
@@ -85,7 +85,7 @@ function PlanDetail({ plan, showTargets }: { plan: WithdrawalPlan; showTargets: 
       </div>
 
       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm whitespace-nowrap">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-700 text-left">
               <th className={thCls}>Allocation</th>

@@ -12,7 +12,7 @@ export function TaxStatementsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Tax Summary</h1>
         {summaries.length > 0 && (
           <select
@@ -34,9 +34,9 @@ export function TaxStatementsPage() {
         </div>
       ) : (
         filtered.map((s) => (
-          <div key={s.fy} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 mb-6 overflow-hidden">
+          <div key={s.fy} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 mb-6 overflow-x-auto">
             <div className="bg-slate-800 dark:bg-slate-900 text-white px-5 py-3 font-semibold">{s.fy}</div>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   <th className="px-5 py-3">Ticker</th>

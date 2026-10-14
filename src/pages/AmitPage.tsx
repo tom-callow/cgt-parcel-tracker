@@ -90,7 +90,7 @@ export function AmitPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">AMIT Adjustments</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -100,7 +100,7 @@ export function AmitPage() {
         </div>
         <button
           onClick={openAdd}
-          className="bg-teal-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-teal-700 shrink-0 ml-8"
+          className="bg-teal-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-teal-700 shrink-0"
         >
           + Add Adjustment
         </button>
@@ -109,7 +109,7 @@ export function AmitPage() {
       {showForm && (
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-5 mb-6 shadow-sm">
           <h2 className="text-lg font-semibold dark:text-slate-100 mb-4">{editId ? "Edit Adjustment" : "Add AMIT Adjustment"}</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <label className={labelCls}>Ticker</label>
               <input
@@ -177,8 +177,8 @@ export function AmitPage() {
           No AMIT adjustments recorded yet.
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden w-fit">
-          <table className="w-full text-sm">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto w-fit max-w-full">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <th className="px-4 py-3">Ticker</th>

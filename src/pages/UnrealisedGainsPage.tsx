@@ -116,9 +116,9 @@ export function UnrealisedGainsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Unrealised Gains</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {lastUpdated && (
             <span className="text-xs text-slate-400">
               Updated {lastUpdated.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}
@@ -149,8 +149,8 @@ export function UnrealisedGainsPage() {
           No open parcels. Add buy trades to see unrealised gains.
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
+          <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                 <SortHeader sortCol={sortCol} sortDir={sortDir} onSort={handleSort} col="ticker" label="Ticker" />
@@ -279,13 +279,13 @@ export function UnrealisedGainsPage() {
         )
 
         return (
-          <div className="mt-6 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="mt-6 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto">
             <div className="bg-slate-50 dark:bg-slate-700 px-4 py-3 border-b border-slate-200 dark:border-slate-600">
               <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
                 Unrealised CGT Summary
               </h2>
             </div>
-            <table className="w-full text-sm">
+            <table className="w-full text-sm whitespace-nowrap">
               <tbody>
                 <tr className="border-b border-slate-100 dark:border-slate-700">
                   <td className="px-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wider" colSpan={2}>Inputs</td>

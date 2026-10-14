@@ -92,6 +92,14 @@ Live prices: Portfolio, Unrealised Gains, Rebalance and the Sale Optimiser all u
 
 Excel exports are **lazy-loaded**: pages `await import("../lib/exportExcel")` / `import("../lib/exportUnrealised")` inside the Export click handler. `xlsx-js-style` (~860 KB) must only be imported from those export modules — a static import from a page or shared module would pull it back into the main bundle. Type-only imports (`import type`) are fine.
 
+### Layout conventions
+- Below `md` the sidebar is a slide-in drawer opened from a top bar (`navOpen` in `App.tsx`); from `md` up it's a sticky column.
+- `main` has `min-w-0` and content is capped at `max-w-7xl`. Without `min-w-0`, a wide table stretches the whole page instead of scrolling.
+- Table cards use `overflow-x-auto` (never `overflow-hidden`, which clips columns) and data tables use `whitespace-nowrap`, so narrow screens scroll the table instead of wrapping numbers.
+- Page header rows use `flex flex-wrap ... gap-3`; form grids start at `grid-cols-1` and add columns at `sm`/`md`.
+- Use `dvh` units (`min-h-dvh`, `h-dvh`), not `h-screen`/`min-h-screen`, so mobile browser toolbars don't cut content off.
+- Expandable table rows are real `<tr>`s (see CapitalGainsPage) — don't put a CSS grid inside a `colSpan` cell, its columns won't line up with the header.
+
 ### Lint conventions (React Compiler rules via `eslint-plugin-react-hooks`)
 The linter stops at the first error per component, so fixing one can reveal more. Patterns it enforces:
 - Don't define components inside other components — lift them to module level and pass state as props (see `SortHeader`, `ResultCard`).
