@@ -98,6 +98,7 @@ Excel exports are **lazy-loaded**: pages `await import("../lib/exportExcel")` / 
 - Table cards use `overflow-x-auto` (never `overflow-hidden`, which clips columns) and data tables use `whitespace-nowrap`, so narrow screens scroll the table instead of wrapping numbers.
 - Page header rows use `flex flex-wrap ... gap-3`; form grids start at `grid-cols-1` and add columns at `sm`/`md`.
 - Use `dvh` units (`min-h-dvh`, `h-dvh`), not `h-screen`/`min-h-screen`, so mobile browser toolbars don't cut content off.
+- Gain/loss colours always carry a dark variant: `text-emerald-700 dark:text-emerald-400` and `text-red-600 dark:text-red-400` (the light shades fail contrast on dark backgrounds). Don't put a `dark:text-slate-*` default on the same element, or it can override the colour.
 - Expandable table rows are real `<tr>`s (see CapitalGainsPage) — don't put a CSS grid inside a `colSpan` cell, its columns won't line up with the header.
 
 ### Lint conventions (React Compiler rules via `eslint-plugin-react-hooks`)

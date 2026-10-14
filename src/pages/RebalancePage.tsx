@@ -206,7 +206,7 @@ export function RebalancePage() {
                   <td className={`px-4 py-2.5 text-right font-medium ${
                     variance == null ? "" :
                     Math.abs(variance) < 0.05 ? "text-slate-400" :
-                    variance > 0 ? "text-emerald-700" : "text-red-600"
+                    variance > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
                   }`}>
                     {variance != null
                       ? `${variance > 0 ? "+" : ""}${fmtPct(variance)}`
@@ -228,8 +228,8 @@ export function RebalancePage() {
                 <span className={
                   targetsComplete
                     ? targetsSumTo100
-                      ? "text-emerald-700"
-                      : "text-red-600"
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "text-red-600 dark:text-red-400"
                     : "text-slate-400"
                 }>
                   {targetsComplete ? fmtPct(targetSum) : "—"}

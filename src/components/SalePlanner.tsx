@@ -20,7 +20,7 @@ const TOLERANCES = [
 const FRACTIONAL_KEY = "cgt-fractional-units"
 const fmtUnits = (n: number) => n.toLocaleString("en-AU", { maximumFractionDigits: 4 })
 
-const gainCls = (n: number) => (n > 0.005 ? "text-emerald-700 dark:text-emerald-500" : n < -0.005 ? "text-red-600" : "")
+const gainCls = (n: number) => (n > 0.005 ? "text-emerald-700 dark:text-emerald-400" : n < -0.005 ? "text-red-600 dark:text-red-400" : "")
 
 function PlanDetail({ plan, showTargets }: { plan: WithdrawalPlan; showTargets: boolean }) {
   return (
@@ -33,7 +33,7 @@ function PlanDetail({ plan, showTargets }: { plan: WithdrawalPlan; showTargets: 
         ].map(([label, value, cls]) => (
           <div key={label} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3">
             <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
-            <div className={`text-lg font-semibold dark:text-slate-100 ${cls}`}>{value}</div>
+            <div className={`text-lg font-semibold ${cls || "dark:text-slate-100"}`}>{value}</div>
           </div>
         ))}
       </div>
@@ -315,7 +315,7 @@ export function SalePlanner() {
           Couldn't get a price for {missingPrices.join(", ")}. Try refreshing prices.
         </div>
       )}
-      {error && <div className="text-red-600 text-sm mb-4">{error}</div>}
+      {error && <div className="text-red-600 dark:text-red-400 text-sm mb-4">{error}</div>}
 
       {plan && <PlanDetail plan={plan} showTargets={targetsSet} />}
 

@@ -316,8 +316,8 @@ export function TradesPage() {
                 >
                   Download Template
                 </button>
-                {csvSuccess && <span className="text-emerald-600 text-sm font-medium">{csvSuccess}</span>}
-                {csvError && <span className="text-red-600 text-sm">{csvError}</span>}
+                {csvSuccess && <span className="text-emerald-600 dark:text-emerald-400 text-sm font-medium">{csvSuccess}</span>}
+                {csvError && <span className="text-red-600 dark:text-red-400 text-sm">{csvError}</span>}
               </div>
             </>
           ) : (
@@ -342,13 +342,13 @@ export function TradesPage() {
                         ) : (
                           <>
                             {csvPreview.results.length} new trade{csvPreview.results.length !== 1 ? "s" : ""} —{" "}
-                            <span className="text-emerald-700 font-medium">{buys} buy{buys !== 1 ? "s" : ""}</span>,{" "}
-                            <span className="text-red-600 font-medium">{sells} sell{sells !== 1 ? "s" : ""}</span>
+                            <span className="text-emerald-700 dark:text-emerald-400 font-medium">{buys} buy{buys !== 1 ? "s" : ""}</span>,{" "}
+                            <span className="text-red-600 dark:text-red-400 font-medium">{sells} sell{sells !== 1 ? "s" : ""}</span>
                           </>
                         )}
                       </span>
                       {hasErrors && (
-                        <span className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded">
+                        <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 font-medium px-2 py-0.5 rounded">
                           Fix errors before importing
                         </span>
                       )}
@@ -392,8 +392,8 @@ export function TradesPage() {
                               <td className="px-3 py-2 font-medium dark:text-slate-200">{r.ticker}</td>
                               <td className="px-3 py-2">
                                 {r.type === "buy"
-                                  ? <span className="bg-emerald-200 text-emerald-800 text-xs font-medium px-2 py-0.5 rounded">BUY</span>
-                                  : <span className="bg-red-200 text-red-800 text-xs font-medium px-2 py-0.5 rounded">SELL</span>}
+                                  ? <span className="bg-emerald-200 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-medium px-2 py-0.5 rounded">BUY</span>
+                                  : <span className="bg-red-200 dark:bg-red-900/40 text-red-800 dark:text-red-300 text-xs font-medium px-2 py-0.5 rounded">SELL</span>}
                               </td>
                               <td className="px-3 py-2 text-right dark:text-slate-300">{fmt(r.units)}</td>
                               <td className="px-3 py-2 text-right dark:text-slate-300">${fmt(r.unitPrice)}</td>
@@ -405,8 +405,8 @@ export function TradesPage() {
                               </td>
                               <td className="px-3 py-2 text-right">
                                 {r.status === "error"
-                                  ? <span className="text-red-600 text-xs">{r.error}</span>
-                                  : <span className="text-emerald-600 text-xs">✓</span>}
+                                  ? <span className="text-red-600 dark:text-red-400 text-xs">{r.error}</span>
+                                  : <span className="text-emerald-600 dark:text-emerald-400 text-xs">✓</span>}
                               </td>
                             </tr>
                           ))}
@@ -534,7 +534,7 @@ export function TradesPage() {
                 <div className="col-span-full mt-1">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">Allocate parcels</span>
-                    <span className={`text-xs font-medium ${remaining === 0 && unitsToSell > 0 ? "text-emerald-600" : remaining < 0 ? "text-red-500" : "text-slate-400 dark:text-slate-500"}`}>
+                    <span className={`text-xs font-medium ${remaining === 0 && unitsToSell > 0 ? "text-emerald-600 dark:text-emerald-400" : remaining < 0 ? "text-red-500 dark:text-red-400" : "text-slate-400 dark:text-slate-500"}`}>
                       {remaining === 0 && unitsToSell > 0 ? "Fully allocated" : remaining < 0 ? `Over by ${Math.abs(remaining)} units` : `${unitsToSell > 0 ? remaining : unitsToSell} units remaining`}
                     </span>
                   </div>
@@ -590,7 +590,7 @@ export function TradesPage() {
                 Cancel
               </button>
             </div>
-            {error && <p className="col-span-full text-red-600 text-sm">{error}</p>}
+            {error && <p className="col-span-full text-red-600 dark:text-red-400 text-sm">{error}</p>}
           </form>
         </div>
       )}
@@ -623,7 +623,7 @@ export function TradesPage() {
                 <tr key={row.data.id} className="bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 dark:text-slate-300">
                   <td className="px-4 py-2.5 font-medium dark:text-slate-100">{row.data.ticker}</td>
                   <td className="px-4 py-2.5">
-                    <span className="bg-emerald-200 text-emerald-800 text-xs font-medium px-2 py-0.5 rounded">BUY</span>
+                    <span className="bg-emerald-200 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-medium px-2 py-0.5 rounded">BUY</span>
                   </td>
                   <td className="px-4 py-2.5">{fmtDate(row.data.date)}</td>
                   <td className="px-4 py-2.5 text-right">{fmt(row.data.units)}</td>
@@ -647,7 +647,7 @@ export function TradesPage() {
                 <tr key={row.data.id} className="bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 dark:text-slate-300">
                   <td className="px-4 py-2.5 font-medium dark:text-slate-100">{row.data.ticker}</td>
                   <td className="px-4 py-2.5">
-                    <span className="bg-red-200 text-red-800 text-xs font-medium px-2 py-0.5 rounded">SELL</span>
+                    <span className="bg-red-200 dark:bg-red-900/40 text-red-800 dark:text-red-300 text-xs font-medium px-2 py-0.5 rounded">SELL</span>
                   </td>
                   <td className="px-4 py-2.5">{fmtDate(row.data.date)}</td>
                   <td className="px-4 py-2.5 text-right">{fmt(row.data.units)}</td>

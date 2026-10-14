@@ -167,7 +167,7 @@ export function AmitPage() {
                 Cancel
               </button>
             </div>
-            {error && <p className="col-span-full text-red-600 text-sm">{error}</p>}
+            {error && <p className="col-span-full text-red-600 dark:text-red-400 text-sm">{error}</p>}
           </form>
         </div>
       )}
@@ -206,11 +206,11 @@ export function AmitPage() {
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       {a.totalAdjustment >= 0 ? (
-                        <span className="text-xs font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded">
+                        <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded">
                           Cost base ↑
                         </span>
                       ) : (
-                        <span className="text-xs font-medium text-red-700 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded">
+                        <span className="text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded">
                           Cost base ↓
                         </span>
                       )}
@@ -224,7 +224,7 @@ export function AmitPage() {
                       </button>
                       <button
                         onClick={() => deleteAmitAdjustment(a.id)}
-                        className="text-slate-400 hover:text-red-600 text-xs"
+                        className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 text-xs"
                       >
                         Delete
                       </button>

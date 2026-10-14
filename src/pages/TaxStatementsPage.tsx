@@ -51,22 +51,22 @@ export function TaxStatementsPage() {
                 {s.rows.map((r) => (
                   <tr key={r.ticker} className="dark:text-slate-300">
                     <td className="px-5 py-2.5 font-medium dark:text-slate-100">{r.ticker}</td>
-                    <td className="px-5 py-2.5 text-right text-emerald-700">${fmt(r.grossGains)}</td>
-                    <td className="px-5 py-2.5 text-right text-red-600">${fmt(r.grossLosses)}</td>
+                    <td className="px-5 py-2.5 text-right text-emerald-700 dark:text-emerald-400">${fmt(r.grossGains)}</td>
+                    <td className="px-5 py-2.5 text-right text-red-600 dark:text-red-400">${fmt(r.grossLosses)}</td>
                     <td className="px-5 py-2.5 text-right">${fmt(r.netGainBeforeDiscount)}</td>
                     <td className="px-5 py-2.5 text-right">${fmt(r.discountAmount)}</td>
-                    <td className={`px-5 py-2.5 text-right font-semibold ${r.netTaxableGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                    <td className={`px-5 py-2.5 text-right font-semibold ${r.netTaxableGain >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                       ${fmt(r.netTaxableGain)}
                     </td>
                   </tr>
                 ))}
                 <tr className="bg-slate-50 dark:bg-slate-700 font-semibold">
                   <td className="px-5 py-3 dark:text-slate-100">TOTAL</td>
-                  <td className="px-5 py-3 text-right text-emerald-700">${fmt(s.totalGrossGains)}</td>
-                  <td className="px-5 py-3 text-right text-red-600">${fmt(s.totalGrossLosses)}</td>
+                  <td className="px-5 py-3 text-right text-emerald-700 dark:text-emerald-400">${fmt(s.totalGrossGains)}</td>
+                  <td className="px-5 py-3 text-right text-red-600 dark:text-red-400">${fmt(s.totalGrossLosses)}</td>
                   <td className="px-5 py-3 text-right dark:text-slate-100">${fmt(s.netGainBeforeDiscount)}</td>
                   <td className="px-5 py-3 text-right dark:text-slate-100">${fmt(s.discountAmount)}</td>
-                  <td className={`px-5 py-3 text-right ${s.netTaxableGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                  <td className={`px-5 py-3 text-right ${s.netTaxableGain >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                     ${fmt(s.netTaxableGain)}
                   </td>
                 </tr>

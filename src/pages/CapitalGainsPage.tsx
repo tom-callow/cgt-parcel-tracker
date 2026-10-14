@@ -111,11 +111,11 @@ export function CapitalGainsPage() {
                       <td className="px-4 py-2.5 text-right">{d.units}</td>
                       <td className="px-4 py-2.5 text-right">${fmt(d.proceeds)}</td>
                       <td className="px-4 py-2.5 text-right">${fmt(totalCost)}</td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${grossGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                      <td className={`px-4 py-2.5 text-right font-medium ${grossGain >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                         ${fmt(grossGain)}
                       </td>
                       <td className="px-4 py-2.5 text-right">${fmt(discountAmt)}</td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${discountedGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                      <td className={`px-4 py-2.5 text-right font-medium ${discountedGain >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                         ${fmt(discountedGain)}
                       </td>
                     </tr>
@@ -153,15 +153,15 @@ export function CapitalGainsPage() {
                                       <td className="py-1">{fmtDate(pu.acquisitionDate)}</td>
                                       <td className="py-1 text-right">{pu.units}</td>
                                       <td className="py-1 text-right">${fmt(pu.costBase)}</td>
-                                      <td className={`py-1 text-right ${amitAdj === 0 ? "text-slate-400" : amitAdj > 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                      <td className={`py-1 text-right ${amitAdj === 0 ? "text-slate-400" : amitAdj > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                                         {amitAdj === 0 ? "—" : `${amitAdj > 0 ? "+" : ""}$${fmt(amitAdj)}`}
                                       </td>
                                       <td className="py-1 text-right">${fmt(effectiveCostBase)}</td>
-                                      <td className={`py-1 text-right ${effectiveGrossGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                      <td className={`py-1 text-right ${effectiveGrossGain >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                                         ${fmt(effectiveGrossGain)}
                                       </td>
                                       <td className="py-1 text-right">{pu.discountEligible ? "Yes (50%)" : "No"}</td>
-                                      <td className={`py-1 text-right font-medium ${effectiveDiscountedGain >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                                      <td className={`py-1 text-right font-medium ${effectiveDiscountedGain >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                                         ${fmt(effectiveDiscountedGain)}
                                       </td>
                                     </tr>
