@@ -126,11 +126,13 @@ function sortOptimised(
   parcels: MatchableParcels,
   salePricePerUnit: number,
   disposalDate: string,
-  entityType: EntityType
+  entityType: EntityType,
+  amitAdjPerUnit: (p: MatchableParcels[number]) => number
 ): MatchableParcels {
   return [...parcels].sort((a, b) => {
-    const costPerUnitA = a.costBase / a.units
-    const costPerUnitB = b.costBase / b.units
+    // Rank on the AMIT-adjusted cost base, since that's what the gain will be taxed on
+    const costPerUnitA = a.costBase / a.units + amitAdjPerUnit(a)
+    const costPerUnitB = b.costBase / b.units + amitAdjPerUnit(b)
 
     const gainA = salePricePerUnit - costPerUnitA
     const gainB = salePricePerUnit - costPerUnitB
@@ -168,7 +170,8 @@ export function matchParcels(
   method: "fifo" | "lifo" | "optimised",
   salePricePerUnit: number,
   disposalDate: string,
-  entityType: EntityType
+  entityType: EntityType,
+  amitAdjustments: AmitAdjustment[] = []
 ): ParcelUsage[] {
   const eligible = availableParcels.filter(
     (p) => p.ticker === ticker && p.unitsRemaining > 0
@@ -183,7 +186,9 @@ export function matchParcels(
       sorted = sortLIFO(eligible)
       break
     case "optimised":
-      sorted = sortOptimised(eligible, salePricePerUnit, disposalDate, entityType)
+      sorted = sortOptimised(eligible, salePricePerUnit, disposalDate, entityType, (p) =>
+        calcAmitAdjPerUnit(ticker, p.date, disposalDate, amitAdjustments)
+      )
       break
   }
 
@@ -235,8 +240,11 @@ export function executeDisposal(
   unitPrice: number,
   brokerage: number,
   method: "fifo" | "lifo" | "optimised",
-  entityType: EntityType
+  entityType: EntityType,
+  amitAdjustments: AmitAdjustment[] = []
 ): { disposal: Disposal; updatedParcels: Parcel[] } {
+  // AMIT only affects which parcels "optimised" picks: the stored ParcelUsage values stay
+  // unadjusted, because computeFYSummary applies AMIT adjustments when reporting
   const parcelsUsed = matchParcels(
     parcels,
     ticker,
@@ -244,7 +252,8 @@ export function executeDisposal(
     method,
     unitPrice,
     date,
-    entityType
+    entityType,
+    amitAdjustments
   )
 
   const disposal: Disposal = {
@@ -464,12 +473,14 @@ export function previewDisposal(
   salePricePerUnit: number,
   disposalDate: string,
   brokerage: number,
-  entityType: EntityType
+  entityType: EntityType,
+  amitAdjustments: AmitAdjustment[] = []
 ): { fifo: OptimiserResult; lifo: OptimiserResult; optimised: OptimiserResult } {
   const methods = ["fifo", "lifo", "optimised"] as const
   const results: Record<string, OptimiserResult> = {}
 
   for (const method of methods) {
+    // Show AMIT-adjusted figures, matching what computeFYSummary will report once recorded
     const parcelsUsed = matchParcels(
       parcels,
       ticker,
@@ -477,8 +488,19 @@ export function previewDisposal(
       method,
       salePricePerUnit,
       disposalDate,
-      entityType
-    )
+      entityType,
+      amitAdjustments
+    ).map((pu) => {
+      const amitAdj = calcAmitAdjPerUnit(ticker, pu.acquisitionDate, disposalDate, amitAdjustments) * pu.units
+      if (amitAdj === 0) return pu
+      const grossGain = pu.grossGain - amitAdj
+      return {
+        ...pu,
+        costBase: pu.costBase + amitAdj,
+        grossGain,
+        discountedGain: grossGain > 0 ? grossGain * discountMultiplier(pu.discountEligible) : grossGain,
+      }
+    })
 
     const totalCostBase = parcelsUsed.reduce((s, p) => s + p.costBase, 0)
     const totalProceeds = units * salePricePerUnit - brokerage

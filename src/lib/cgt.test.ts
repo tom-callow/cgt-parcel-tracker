@@ -12,9 +12,10 @@ import {
   parseBetasharesCSV,
   parseImportCSV,
   splitNewTrades,
+  previewDisposal,
   type CSVTrade,
 } from "./cgt"
-import type { Parcel, Disposal } from "./types"
+import type { Parcel, Disposal, AmitAdjustment } from "./types"
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -565,5 +566,41 @@ describe("splitNewTrades", () => {
     expect(splitNewTrades([trade("2025-05-02", "XYZ", "buy", 10)], existing, []).newTrades).toHaveLength(1)
     expect(splitNewTrades([trade("2025-05-01", "ABC", "buy", 10)], existing, []).newTrades).toHaveLength(1)
     expect(splitNewTrades([trade("2025-05-01", "XYZ", "buy", 10.01)], existing, []).newTrades).toHaveLength(1)
+  })
+})
+
+describe("AMIT adjustments in the sale optimiser", () => {
+  // Both held < 12 months at the sale. Unadjusted, B has the higher cost base; a +$5/unit AMIT
+  // adjustment (only A was held on 30 June) lifts A's to $95, so A is now the lower-gain parcel
+  const parcels = [
+    makeParcel({ id: "A", ticker: "ABC", date: "2025-01-01", units: 10, unitPrice: 90 }),
+    makeParcel({ id: "B", ticker: "ABC", date: "2025-08-01", units: 10, unitPrice: 92 }),
+  ]
+  const amit: AmitAdjustment[] = [
+    { id: "amit", ticker: "ABC", date: "2025-06-30", totalAdjustment: 50, unitsAtDate: 10 },
+  ]
+
+  it("ranks optimised parcels on the AMIT-adjusted cost base", () => {
+    expect(matchParcels(parcels, "ABC", 10, "optimised", 100, "2025-10-01", "individual")[0].parcelId).toBe("B")
+    expect(matchParcels(parcels, "ABC", 10, "optimised", 100, "2025-10-01", "individual", amit)[0].parcelId).toBe("A")
+  })
+
+  it("previews AMIT-adjusted figures that match the FY summary once recorded", () => {
+    const preview = previewDisposal(parcels, "ABC", 10, 100, "2025-10-01", 0, "individual", amit).optimised
+    expect(preview.parcelsUsed[0].costBase).toBeCloseTo(950)
+    expect(preview.totalGrossGain).toBeCloseTo(50)
+    expect(preview.totalDiscountedGain).toBeCloseTo(50)
+
+    const { disposal } = executeDisposal(parcels, "ABC", "2025-10-01", 10, 100, 0, "optimised", "individual", amit)
+    // Stored unadjusted; computeFYSummary applies the adjustment
+    expect(disposal.parcelsUsed[0]).toMatchObject({ parcelId: "A", costBase: 900, grossGain: 100 })
+    expect(computeFYSummary([disposal], amit)[0].netTaxableGain).toBeCloseTo(preview.totalDiscountedGain)
+  })
+
+  it("ignores adjustments dated after the sale", () => {
+    const later = [{ ...amit[0], date: "2026-06-30" }]
+    const preview = previewDisposal(parcels, "ABC", 10, 100, "2025-10-01", 0, "individual", later).optimised
+    expect(preview.parcelsUsed[0].parcelId).toBe("B")
+    expect(preview.totalGrossGain).toBeCloseTo(80)
   })
 })

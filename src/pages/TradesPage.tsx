@@ -134,7 +134,7 @@ export function TradesPage() {
           ))
         } else {
           ({ disposal, updatedParcels } = executeDisposal(
-            state.parcels, ticker, formDate, units, price, brokerage, formMethod, state.entityType
+            state.parcels, ticker, formDate, units, price, brokerage, formMethod, state.entityType, state.amitAdjustments
           ))
         }
         state.addDisposal(disposal, updatedParcels)
@@ -172,7 +172,7 @@ export function TradesPage() {
           } else {
             try {
               const { disposal, updatedParcels } = executeDisposal(
-                workingParcels, t.ticker, t.date, t.units, t.unitPrice, t.brokerage, csvMethod, state.entityType
+                workingParcels, t.ticker, t.date, t.units, t.unitPrice, t.brokerage, csvMethod, state.entityType, state.amitAdjustments
               )
               workingParcels = updatedParcels
               newDisposals.push(disposal)

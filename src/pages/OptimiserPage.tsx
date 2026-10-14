@@ -127,7 +127,7 @@ function SingleSale() {
     }
 
     try {
-      const r = previewDisposal(state.parcels, t, u, p, date, b, state.entityType)
+      const r = previewDisposal(state.parcels, t, u, p, date, b, state.entityType, state.amitAdjustments)
       setResult(r)
     } catch (err) {
       setError((err as Error).message)
@@ -143,7 +143,7 @@ function SingleSale() {
 
     try {
       const { disposal, updatedParcels } = executeDisposal(
-        state.parcels, t, date, u, p, b, method, state.entityType
+        state.parcels, t, date, u, p, b, method, state.entityType, state.amitAdjustments
       )
       state.addDisposal(disposal, updatedParcels)
       setResult(null)
