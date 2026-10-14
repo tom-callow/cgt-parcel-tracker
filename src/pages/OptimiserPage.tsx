@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 import { previewDisposal, executeDisposal, type OptimiserResult } from "../lib/cgt"
 import { fmt, uniqueTickers } from "../lib/formatters"
+import { WithdrawalPlanner } from "../components/WithdrawalPlanner"
 
 const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
 const selectCls = "w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
@@ -74,7 +75,29 @@ function ResultCard({ r, highlight, onRecord }: {
   )
 }
 
+const tabCls = (active: boolean) =>
+  `px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+    active
+      ? "border-teal-600 text-teal-700 dark:text-teal-400"
+      : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+  }`
+
 export function OptimiserPage() {
+  const [mode, setMode] = useState<"sale" | "withdrawal">("sale")
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-4">Sale Optimiser</h1>
+      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-4">
+        <button type="button" onClick={() => setMode("sale")} className={tabCls(mode === "sale")}>Single sale</button>
+        <button type="button" onClick={() => setMode("withdrawal")} className={tabCls(mode === "withdrawal")}>Withdrawal planner</button>
+      </div>
+      {mode === "sale" ? <SingleSale /> : <WithdrawalPlanner />}
+    </div>
+  )
+}
+
+function SingleSale() {
   const state = useAppState()
   const [ticker, setTicker] = useState("")
   const [units, setUnits] = useState("")
@@ -135,7 +158,6 @@ export function OptimiserPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6">Sale Optimiser</h1>
       <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
         Preview how different parcel matching methods affect your taxable gain before recording a sale.
       </p>

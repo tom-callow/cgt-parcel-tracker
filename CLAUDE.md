@@ -76,14 +76,17 @@ Each page is a standalone component consuming `useAppState()`. Navigation is a `
 - **UnrealisedGainsPage** — unrealised P&L on current holdings, using live prices; Excel export via `src/lib/exportUnrealised.ts` (Unrealised Gains, CGT Summary, and AMIT Allocation — an audit trail of each AMIT adjustment's per-unit allocation to parcels with a reconciliation to statement totals; the main sheet's AMIT Adj/Unit column links to it, so keep its formulas mirroring `calcAmitAdjPerUnit`). All export dates are real Excel dates via `src/lib/excelDate.ts`
 - **CapitalGainsPage** — realised CGT summary by FY; Excel export via `src/lib/exportExcel.ts` (Summary, Parcel Detail, Parcel Register sheets with live formulas)
 - **TaxStatementsPage** — formatted tax statements for lodgement
-- **OptimiserPage** — preview disposal tax outcome across all three methods before committing
+- **OptimiserPage** — two tabs. *Single sale*: preview disposal tax outcome across all three methods before committing. *Withdrawal planner* (`src/components/WithdrawalPlanner.tsx`, logic in `src/lib/withdrawal.ts`): given the cash needed, plans sales across tickers that minimise taxable gain while keeping each holding within a chosen drift band (Exact / ±1 / ±2 / ±5 percentage points / ignore targets) of its Rebalancing target.
+  - Parcel choice within a ticker never affects allocation, so it's always lowest tax per dollar of proceeds first. The band only constrains how many dollars come from each ticker: each gets a [min, max] sale range, then the cheapest slices across tickers fill the rest (greedy, optimal because per-ticker costs are convex). If overweight holdings need more selling than the withdrawal covers, it sells only those, proportionally, and flags `withinTolerance: false`.
+  - Sales round up to whole units, or 4 decimal places when "fractional units" is ticked (saved per browser in localStorage `cgt-fractional-units`). Brokerage per trade is re-solved until the trade count settles. Rounding can make a wider band cost more than a narrower one, so the UI carries the cheaper narrower plan forward.
+  - Uses live prices and includes AMIT adjustments in cost bases (the Single sale tab doesn't). It doesn't record sales — the user records actual fills on the Trades page.
 - **AmitPage** — manage AMIT cost base adjustments
 - **RebalancePage** — target allocation rebalancing recommendations. Inputs show the saved target unless mid-edit (`draftTargets` holds only in-progress edits), so external changes like undo appear without syncing.
 - **SaveLoadPage** — JSON import/export and CSV trade import
 
 Shared display helpers (`fmt`, `fmtPct`, `byDate`, `uniqueTickers`) live in `src/lib/formatters.ts`.
 
-Live prices: Portfolio, Unrealised Gains and Rebalance all use `useLivePrices(tickers)` (`src/lib/useLivePrices.ts`) — fetches once on mount, returns `{ prices, loading, lastUpdated, refresh }`. Don't re-implement price fetching per page.
+Live prices: Portfolio, Unrealised Gains, Rebalance and the Withdrawal planner all use `useLivePrices(tickers)` (`src/lib/useLivePrices.ts`) — fetches once on mount, returns `{ prices, loading, lastUpdated, refresh }`. Don't re-implement price fetching per page.
 
 Excel exports are **lazy-loaded**: pages `await import("../lib/exportExcel")` / `import("../lib/exportUnrealised")` inside the Export click handler. `xlsx-js-style` (~860 KB) must only be imported from those export modules — a static import from a page or shared module would pull it back into the main bundle. Type-only imports (`import type`) are fine.
 
