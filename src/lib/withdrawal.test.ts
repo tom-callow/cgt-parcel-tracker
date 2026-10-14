@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { planWithdrawal, type WithdrawalInput } from "./withdrawal"
+import { planHoldingSale, planWithdrawal, type WithdrawalInput } from "./withdrawal"
 import { computeCostBase } from "./cgt"
 import type { Parcel } from "./types"
 
@@ -112,5 +112,43 @@ describe("planWithdrawal", () => {
 
   it("rejects a withdrawal larger than the portfolio", () => {
     expect(() => planWithdrawal(input({ amount: 50000 }))).toThrow(/more than the portfolio/)
+  })
+})
+
+describe("planHoldingSale", () => {
+  const base = { ...input({}), ticker: "ABC" }
+
+  it("sells a number of units from the chosen holding, lowest-tax parcel first", () => {
+    const plan = planHoldingSale({ ...base, sell: { units: 120 } })
+    expect(plan.sales).toHaveLength(1)
+    expect(plan.sales[0].parcels.map((p) => [p.parcelId, p.units])).toEqual([["abc-new", 100], ["abc-old", 20]])
+    expect(plan.sales[0].taxableGain).toBeCloseTo(100 * 5 + 20 * 50 * 0.5)
+  })
+
+  it("raises a cash amount net of brokerage from the chosen holding", () => {
+    const plan = planHoldingSale({ ...base, brokeragePerTrade: 10, sell: { cash: 1000 } })
+    expect(plan.sales.map((s) => [s.ticker, s.units])).toEqual([["ABC", 11]])
+    expect(plan.netProceeds).toBeCloseTo(1090)
+  })
+
+  it("can sell the whole holding and shows allocations afterwards", () => {
+    const plan = planHoldingSale({ ...base, sell: { units: 200 } })
+    expect(plan.holdings.find((h) => h.ticker === "ABC")!.pctAfter).toBeCloseTo(0)
+    expect(plan.holdings.find((h) => h.ticker === "XYZ")!.pctAfter).toBeCloseTo(100)
+  })
+
+  it("uses AMIT-adjusted cost bases to pick parcels and report gains", () => {
+    // +$10/unit AMIT on the old parcel (held on 30 June): $50 → $60 cost base, so its discounted
+    // gain per unit ($20) is still above the new parcel's ($5) — but the reported gain is adjusted
+    const amit = [{ id: "a", ticker: "ABC", date: "2025-06-30", totalAdjustment: 1000, unitsAtDate: 100 }]
+    const plan = planHoldingSale({ ...base, amitAdjustments: amit, sell: { units: 120 } })
+    const old = plan.sales[0].parcels.find((p) => p.parcelId === "abc-old")!
+    expect(old.costBase).toBeCloseTo(20 * 60)
+    expect(old.taxableGain).toBeCloseTo(20 * 40 * 0.5)
+  })
+
+  it("rejects selling more than is held", () => {
+    expect(() => planHoldingSale({ ...base, sell: { units: 201 } })).toThrow(/only hold 200/)
+    expect(() => planHoldingSale({ ...base, sell: { cash: 25000 } })).toThrow(/more than your ABC holding/)
   })
 })

@@ -62,8 +62,7 @@ All tax calculation lives here. Key functions:
 - `executeDisposal` — calls `matchParcels` then builds the `Disposal` object and returns updated parcels.
 - `executeManualDisposal` — builds a disposal from user-chosen parcels (method `"manual"`).
 - `computeFYSummary` — aggregates disposals into per-FY, per-ticker summaries, applying AMIT adjustments to cost bases.
-- `previewDisposal` — compares all three methods side-by-side without committing (used by OptimiserPage).
-- AMIT in matching: `matchParcels` / `executeDisposal` / `previewDisposal` take optional `amitAdjustments`. The optimised method ranks on the AMIT-adjusted cost base and the preview shows adjusted figures, but stored `ParcelUsage` values stay **unadjusted** — `computeFYSummary` applies AMIT at reporting time, so adjusting them would double-count.
+- AMIT in matching: `matchParcels` / `executeDisposal` take optional `amitAdjustments`, and the optimised method ranks on the AMIT-adjusted cost base. Stored `ParcelUsage` values stay **unadjusted** — `computeFYSummary` applies AMIT at reporting time, so adjusting them would double-count.
 - `parseImportCSV` — entry point for trade CSV imports. Detects a **Betashares Direct** export (header has `Effective Date` + `Activity Type`) and uses `parseBetasharesCSV`, otherwise the standard format via `parseTradesCSV` (date, ticker, type, units, unit price, brokerage; ISO or AU dates). Returns `{ format, trades, ignored }`.
   - Betashares: `Symbol` is `TICKER:AU`; sell quantities and buy `Gross` are negative; brokerage is blank; `Gross` = Price × Quantity, so the unit price is derived from `Gross` (amount actually paid). Deposit/Withdrawal/Distribution rows are counted in `ignored`, not imported.
   - All parsing goes through `parseCSVRows` (handles quoted fields, CRLF, BOM) — don't split lines on commas.
@@ -77,7 +76,9 @@ Each page is a standalone component consuming `useAppState()`. Navigation is a `
 - **UnrealisedGainsPage** — unrealised P&L on current holdings, using live prices; Excel export via `src/lib/exportUnrealised.ts` (Unrealised Gains, CGT Summary, and AMIT Allocation — an audit trail of each AMIT adjustment's per-unit allocation to parcels with a reconciliation to statement totals; the main sheet's AMIT Adj/Unit column links to it, so keep its formulas mirroring `calcAmitAdjPerUnit`). All export dates are real Excel dates via `src/lib/excelDate.ts`
 - **CapitalGainsPage** — realised CGT summary by FY; Excel export via `src/lib/exportExcel.ts` (Summary, Parcel Detail, Parcel Register sheets with live formulas)
 - **TaxStatementsPage** — formatted tax statements for lodgement
-- **OptimiserPage** — two tabs. *Single sale*: preview disposal tax outcome across all three methods before committing. *Withdrawal planner* (`src/components/WithdrawalPlanner.tsx`, logic in `src/lib/withdrawal.ts`): given the cash needed, plans sales across tickers that minimise taxable gain while keeping each holding within a chosen drift band (Exact / ±1 / ±2 / ±5 percentage points / ignore targets) of its Rebalancing target.
+- **OptimiserPage** (Sale Optimiser) — renders the sale planner (`src/components/SalePlanner.tsx`, logic in `src/lib/withdrawal.ts`). "Sell from" picks the mode:
+  - *Any holding* (`planWithdrawal`): given the cash needed, plans sales across tickers that minimise taxable gain while keeping each holding within a chosen drift band (Exact / ±1 / ±2 / ±5 percentage points / ignore targets) of its Rebalancing target.
+  - *A specific ticker* (`planHoldingSale`): sells only that holding, by cash or units (with "Sell all"), in lowest-tax parcel order. This replaced the old Single sale FIFO/LIFO/optimised comparison; FIFO/LIFO remain selectable when recording on the Trades page.
   - Parcel choice within a ticker never affects allocation, so it's always lowest tax per dollar of proceeds first. The band only constrains how many dollars come from each ticker: each gets a [min, max] sale range, then the cheapest slices across tickers fill the rest (greedy, optimal because per-ticker costs are convex). If overweight holdings need more selling than the withdrawal covers, it sells only those, proportionally, and flags `withinTolerance: false`.
   - Sales round up to whole units, or 4 decimal places when "fractional units" is ticked (saved per browser in localStorage `cgt-fractional-units`). Brokerage per trade is re-solved until the trade count settles. Rounding can make a wider band cost more than a narrower one, so the UI carries the cheaper narrower plan forward.
   - Uses live prices and includes AMIT adjustments in cost bases. It doesn't record sales — the user records actual fills on the Trades page.
@@ -87,7 +88,7 @@ Each page is a standalone component consuming `useAppState()`. Navigation is a `
 
 Shared display helpers (`fmt`, `fmtPct`, `byDate`, `uniqueTickers`) live in `src/lib/formatters.ts`.
 
-Live prices: Portfolio, Unrealised Gains, Rebalance and the Withdrawal planner all use `useLivePrices(tickers)` (`src/lib/useLivePrices.ts`) — fetches once on mount, returns `{ prices, loading, lastUpdated, refresh }`. Don't re-implement price fetching per page.
+Live prices: Portfolio, Unrealised Gains, Rebalance and the Sale Optimiser all use `useLivePrices(tickers)` (`src/lib/useLivePrices.ts`) — fetches once on mount, returns `{ prices, loading, lastUpdated, refresh }`. Don't re-implement price fetching per page.
 
 Excel exports are **lazy-loaded**: pages `await import("../lib/exportExcel")` / `import("../lib/exportUnrealised")` inside the Export click handler. `xlsx-js-style` (~860 KB) must only be imported from those export modules — a static import from a page or shared module would pull it back into the main bundle. Type-only imports (`import type`) are fine.
 

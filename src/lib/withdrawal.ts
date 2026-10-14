@@ -11,6 +11,8 @@ import { calcAmitAdjPerUnit, isDiscountEligible } from "./cgt"
 // gets a [min, max] sale range from the tolerance band, and dollars are then taken from the
 // cheapest parcel slices across all tickers (taxable gain per dollar of proceeds, so tickers at
 // different prices compare fairly). Per-ticker costs are convex, so this greedy fill is optimal.
+//
+// planHoldingSale covers selling from one chosen holding (e.g. exiting a position), by cash or units.
 
 export type WithdrawalParcelSale = {
   parcelId: string
@@ -76,7 +78,9 @@ function taxablePerUnit(grossPerUnit: number, eligible: boolean): number {
 }
 
 /** Holdings and parcel slices per ticker, slices in lowest-tax-per-dollar order */
-function buildSlices(input: WithdrawalInput): Map<string, Slice[]> {
+function buildSlices(
+  input: Pick<WithdrawalInput, "parcels" | "prices" | "date" | "entityType" | "amitAdjustments">
+): Map<string, Slice[]> {
   const byTicker = new Map<string, Slice[]>()
   for (const parcel of input.parcels) {
     if (parcel.unitsRemaining <= 0) continue
@@ -212,42 +216,30 @@ function buildSale(ticker: string, units: number, slices: Slice[], price: number
   }
 }
 
-export function planWithdrawal(input: WithdrawalInput): WithdrawalPlan {
-  if (!(input.amount > 0)) throw new Error("Enter an amount to withdraw.")
-  const slices = buildSlices(input)
+/** Units needed to raise `dollars`, rounded up to whole units or 4-decimal fractional units */
+function roundUpUnits(dollars: number, price: number, fractional: boolean): number {
+  const step = fractional ? 1e4 : 1
+  return Math.ceil((dollars / price) * step - 1e-6) / step
+}
+
+function holdingsOf(slices: Map<string, Slice[]>, prices: Record<string, number>) {
+  const units = new Map<string, number>()
   const values = new Map<string, number>()
-  const unitsHeld = new Map<string, number>()
   for (const [t, ss] of slices) {
     const u = ss.reduce((s, x) => s + x.parcel.unitsRemaining, 0)
-    unitsHeld.set(t, u)
-    values.set(t, u * input.prices[t])
+    units.set(t, u)
+    values.set(t, u * prices[t])
   }
+  return { units, values, total: [...values.values()].reduce((s, v) => s + v, 0) }
+}
+
+function finishPlan(
+  sales: WithdrawalSale[],
+  values: Map<string, number>,
+  targets: Record<string, number> | null,
+  withinTolerance: boolean
+): WithdrawalPlan {
   const total = [...values.values()].reduce((s, v) => s + v, 0)
-
-  // Brokerage depends on how many tickers are sold, which depends on the gross amount:
-  // start at one trade and re-solve until the trade count stops growing
-  let trades = 1
-  let result: { units: Map<string, number>; withinTolerance: boolean } | null = null
-  for (let i = 0; i <= slices.size; i++) {
-    const gross = input.amount + input.brokeragePerTrade * trades
-    if (gross > total) throw new Error("The withdrawal is more than the portfolio is worth.")
-    const { dollars, withinTolerance } = allocateDollars(slices, values, input, gross)
-    // Round up to whole (or 4-decimal fractional) units so the target is met, capped at what's held
-    const step = input.fractional ? 1e4 : 1
-    const units = new Map<string, number>()
-    for (const [t, d] of dollars) {
-      if (d <= 0.005) continue
-      const u = Math.ceil((d / input.prices[t]) * step - 1e-6) / step
-      units.set(t, Math.min(unitsHeld.get(t)!, u))
-    }
-    result = { units, withinTolerance }
-    if (units.size <= trades) break
-    trades = units.size
-  }
-
-  const sales = [...result!.units]
-    .map(([t, u]) => buildSale(t, u, slices.get(t)!, input.prices[t], input.brokeragePerTrade))
-    .sort((a, b) => a.ticker.localeCompare(b.ticker))
   const sold = new Map(sales.map((s) => [s.ticker, s.grossProceeds]))
   const totalAfter = total - sales.reduce((s, x) => s + x.grossProceeds, 0)
 
@@ -260,7 +252,7 @@ export function planWithdrawal(input: WithdrawalInput): WithdrawalPlan {
         valueAfter,
         pctBefore: (valueBefore / total) * 100,
         pctAfter: totalAfter > 0 ? (valueAfter / totalAfter) * 100 : 0,
-        targetPct: input.targets ? (input.targets[ticker] ?? 0) : null,
+        targetPct: targets ? (targets[ticker] ?? 0) : null,
       }
     })
     .sort((a, b) => a.ticker.localeCompare(b.ticker))
@@ -270,6 +262,68 @@ export function planWithdrawal(input: WithdrawalInput): WithdrawalPlan {
     netProceeds: sales.reduce((s, x) => s + x.grossProceeds - x.brokerage, 0),
     totalTaxableGain: sales.reduce((s, x) => s + x.taxableGain, 0),
     holdings,
-    withinTolerance: result!.withinTolerance,
+    withinTolerance,
   }
+}
+
+/** Raise `amount` across all holdings, staying within `tolerance` of target allocations */
+export function planWithdrawal(input: WithdrawalInput): WithdrawalPlan {
+  if (!(input.amount > 0)) throw new Error("Enter an amount to withdraw.")
+  const slices = buildSlices(input)
+  const { units: unitsHeld, values, total } = holdingsOf(slices, input.prices)
+
+  // Brokerage depends on how many tickers are sold, which depends on the gross amount:
+  // start at one trade and re-solve until the trade count stops growing
+  let trades = 1
+  let result: { units: Map<string, number>; withinTolerance: boolean } | null = null
+  for (let i = 0; i <= slices.size; i++) {
+    const gross = input.amount + input.brokeragePerTrade * trades
+    if (gross > total) throw new Error("The withdrawal is more than the portfolio is worth.")
+    const { dollars, withinTolerance } = allocateDollars(slices, values, input, gross)
+    // Round up so the target is met, capped at what's held
+    const units = new Map<string, number>()
+    for (const [t, d] of dollars) {
+      if (d <= 0.005) continue
+      units.set(t, Math.min(unitsHeld.get(t)!, roundUpUnits(d, input.prices[t], input.fractional)))
+    }
+    result = { units, withinTolerance }
+    if (units.size <= trades) break
+    trades = units.size
+  }
+
+  const sales = [...result!.units]
+    .map(([t, u]) => buildSale(t, u, slices.get(t)!, input.prices[t], input.brokeragePerTrade))
+    .sort((a, b) => a.ticker.localeCompare(b.ticker))
+  return finishPlan(sales, values, input.targets, result!.withinTolerance)
+}
+
+export type HoldingSaleInput = Omit<WithdrawalInput, "amount" | "tolerance"> & {
+  ticker: string
+  sell: { cash: number } | { units: number }
+}
+
+/** Sell from one holding only — by cash wanted or by units — in lowest-tax parcel order */
+export function planHoldingSale(input: HoldingSaleInput): WithdrawalPlan {
+  const slices = buildSlices(input)
+  const { units: unitsHeld, values } = holdingsOf(slices, input.prices)
+  const tickerSlices = slices.get(input.ticker)
+  if (!tickerSlices) throw new Error(`You don't hold any ${input.ticker}.`)
+  const held = unitsHeld.get(input.ticker)!
+  const price = input.prices[input.ticker]
+
+  let units: number
+  if ("cash" in input.sell) {
+    if (!(input.sell.cash > 0)) throw new Error("Enter an amount to withdraw.")
+    units = roundUpUnits(input.sell.cash + input.brokeragePerTrade, price, input.fractional)
+    if (units > held + 1e-9) {
+      throw new Error(`That's more than your ${input.ticker} holding is worth ($${(held * price).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`)
+    }
+  } else {
+    units = input.sell.units
+    if (!(units > 0)) throw new Error("Enter the number of units to sell.")
+    if (units > held + 1e-9) throw new Error(`You only hold ${held.toLocaleString("en-AU", { maximumFractionDigits: 4 })} units of ${input.ticker}.`)
+  }
+
+  const sale = buildSale(input.ticker, Math.min(units, held), tickerSlices, price, input.brokeragePerTrade)
+  return finishPlan([sale], values, input.targets, true)
 }
