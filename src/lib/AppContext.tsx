@@ -132,7 +132,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const sessionAlive = sessionStorage.getItem("cgt-session-alive") === "1"
         if (!remembered && !sessionAlive) {
           // New browser session and user didn't want to be remembered
-          await supabase.auth.signOut()
+          await supabase.auth.signOut({ scope: "local" })
           setAuthLoading(false)
           return
         }
@@ -354,7 +354,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     setDataLoadError(null)
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: "local" })
   }, [])
 
   return (
