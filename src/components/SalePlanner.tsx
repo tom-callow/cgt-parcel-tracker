@@ -11,9 +11,9 @@ const thCls = "px-3 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 
 
 const TOLERANCES = [
   { value: 0, label: "Exact" },
-  { value: 1, label: "±1%" },
-  { value: 2, label: "±2%" },
-  { value: 5, label: "±5%" },
+  { value: 1, label: "±1 pp" },
+  { value: 2, label: "±2 pp" },
+  { value: 5, label: "±5 pp" },
   { value: Infinity, label: "Ignore targets" },
 ]
 
