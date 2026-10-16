@@ -1,5 +1,5 @@
 import type { AmitAdjustment, EntityType, Parcel } from "./types"
-import { calcAmitAdjPerUnit, isDiscountEligible } from "./cgt"
+import { calcAmitAdjPerUnit, isDiscountEligible, netCapitalGain } from "./cgt"
 
 // ── Withdrawal planner ──────────────────────────────────────────────
 //
@@ -21,7 +21,7 @@ export type WithdrawalParcelSale = {
   costBase: number          // includes AMIT adjustments up to the sale date
   grossGain: number
   discountEligible: boolean
-  taxableGain: number       // after the 50% discount; losses are not discounted
+  taxableGain: number       // this parcel alone, after the 50% discount; sale totals net losses first
 }
 
 export type WithdrawalSale = {
@@ -30,7 +30,7 @@ export type WithdrawalSale = {
   price: number
   grossProceeds: number
   brokerage: number
-  taxableGain: number
+  taxableGain: number       // losses netted against gross gains before the discount
   parcels: WithdrawalParcelSale[]
 }
 
@@ -224,7 +224,7 @@ function buildSale(ticker: string, units: number, slices: Slice[], price: number
     price,
     grossProceeds: units * price,
     brokerage,
-    taxableGain: parcels.reduce((s, p) => s + p.taxableGain, 0),
+    taxableGain: netCapitalGain(parcels).netTaxableGain,
     parcels,
   }
 }
@@ -273,7 +273,7 @@ function finishPlan(
   return {
     sales,
     netProceeds: sales.reduce((s, x) => s + x.grossProceeds - x.brokerage, 0),
-    totalTaxableGain: sales.reduce((s, x) => s + x.taxableGain, 0),
+    totalTaxableGain: netCapitalGain(sales.flatMap((x) => x.parcels)).netTaxableGain,
     holdings,
     withinTolerance,
   }

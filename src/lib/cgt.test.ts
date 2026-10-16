@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import {
+  netCapitalGain,
   computeCostBase,
   computeProceeds,
   getFinancialYear,
@@ -593,5 +594,33 @@ describe("AMIT adjustments in the sale optimiser", () => {
   it("ignores adjustments dated after the sale", () => {
     const later = [{ ...amit[0], date: "2026-06-30" }]
     expect(matchParcels(parcels, "ABC", 10, "optimised", 100, "2025-10-01", "individual", later)[0].parcelId).toBe("B")
+  })
+})
+
+describe("netCapitalGain", () => {
+  const g = (grossGain: number, discountEligible = true) => ({ grossGain, discountEligible })
+
+  it("subtracts losses before applying the discount", () => {
+    // (100 − 40) × 50% = 30, not 100 × 50% − 40 = 10
+    const r = netCapitalGain([g(100), g(-40)])
+    expect(r.netGainBeforeDiscount).toBeCloseTo(60)
+    expect(r.discountAmount).toBeCloseTo(30)
+    expect(r.netTaxableGain).toBeCloseTo(30)
+  })
+
+  it("uses losses against non-discountable gains first", () => {
+    // Loss wipes the 30 short-term gain, leaving 10 against the discountable 100: (100 − 10) × 50%
+    const r = netCapitalGain([g(100), g(30, false), g(-40)])
+    expect(r.netTaxableGain).toBeCloseTo(45)
+  })
+
+  it("returns a net capital loss when losses exceed gains", () => {
+    const r = netCapitalGain([g(50), g(20, false), g(-100)])
+    expect(r.netTaxableGain).toBeCloseTo(-30)
+    expect(r.discountAmount).toBe(0)
+  })
+
+  it("discounts nothing when no gain is eligible", () => {
+    expect(netCapitalGain([g(100, false), g(-40)]).netTaxableGain).toBeCloseTo(60)
   })
 })

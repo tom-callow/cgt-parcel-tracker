@@ -60,6 +60,47 @@ function discountMultiplier(eligible: boolean): number {
   return eligible ? 0.5 : 1.0
 }
 
+// ── Net capital gain ────────────────────────────────────────────────
+
+export type NetCapitalGain = {
+  grossGains: number
+  grossLosses: number            // negative number
+  netGainBeforeDiscount: number
+  discountAmount: number
+  netTaxableGain: number         // negative = net capital loss
+}
+
+/**
+ * Nets gains and losses the way the ATO does (s102-5 ITAA 1997): capital losses reduce gross
+ * capital gains first — non-discountable gains before discountable ones, which leaves the most
+ * gain eligible for the discount — and only then is the 50% discount applied to what's left.
+ * Halving each gain before subtracting losses understates the tax.
+ */
+export function netCapitalGain(items: { grossGain: number; discountEligible: boolean }[]): NetCapitalGain {
+  let nonDiscount = 0
+  let discountable = 0
+  let losses = 0
+  for (const { grossGain, discountEligible } of items) {
+    if (grossGain < 0) losses -= grossGain
+    else if (discountEligible) discountable += grossGain
+    else nonDiscount += grossGain
+  }
+
+  const lossLeftAfterNonDiscount = Math.max(0, losses - nonDiscount)
+  const nonDiscountLeft = Math.max(0, nonDiscount - losses)
+  const discountableLeft = Math.max(0, discountable - lossLeftAfterNonDiscount)
+  const unusedLoss = Math.max(0, lossLeftAfterNonDiscount - discountable)
+  const discountAmount = discountableLeft * (1 - discountMultiplier(true))
+
+  return {
+    grossGains: nonDiscount + discountable,
+    grossLosses: -losses,
+    netGainBeforeDiscount: nonDiscount + discountable - losses,
+    discountAmount,
+    netTaxableGain: unusedLoss > 0 ? -unusedLoss : nonDiscountLeft + discountableLeft - discountAmount,
+  }
+}
+
 // ── AMIT cost base adjustments ──────────────────────────────────────
 
 /**

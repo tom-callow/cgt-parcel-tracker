@@ -177,3 +177,17 @@ describe("heldTargets", () => {
     expect(heldTargets({ ABC: 0, NEW: 100 }, ["ABC"])).toBeNull()
   })
 })
+
+describe("planHoldingSale netting", () => {
+  it("nets a loss parcel against a discounted gain before the discount", () => {
+    // At $100: old parcel has a $50 discountable gain, new parcel a $40 loss. Selling both
+    // is a $10 net gain, so $5 taxable — not 25 − 40 = −$15
+    const ps = [parcel("old", "MIX", "2020-01-01", 1, 50), parcel("new", "MIX", "2026-01-01", 1, 140)]
+    const plan = planHoldingSale({
+      parcels: ps, prices: { MIX: 100 }, targets: null, brokeragePerTrade: 0, fractional: true,
+      date: SALE_DATE, entityType: "individual", amitAdjustments: [], ticker: "MIX", sell: { units: 2 },
+    })
+    expect(plan.sales[0].taxableGain).toBeCloseTo(5)
+    expect(plan.totalTaxableGain).toBeCloseTo(5)
+  })
+})
