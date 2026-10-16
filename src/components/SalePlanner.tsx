@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 import { useLivePrices } from "../lib/useLivePrices"
 import { heldTargets, planHoldingSale, planWithdrawal, type WithdrawalPlan } from "../lib/withdrawal"
-import { fmt, fmtPct, uniqueTickers } from "../lib/formatters"
+import { fmt, fmtPct, fmtPp, uniqueTickers } from "../lib/formatters"
 import { fmtDate } from "../lib/cgt"
 
 const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white"
@@ -106,7 +106,7 @@ function PlanDetail({ plan, showTargets }: { plan: WithdrawalPlan; showTargets: 
                   {showTargets && <td className="px-3 py-2 text-right">{fmtPct(h.targetPct ?? 0)}</td>}
                   {showTargets && (
                     <td className="px-3 py-2 text-right text-slate-500 dark:text-slate-400">
-                      {drift != null ? `${drift > 0 ? "+" : ""}${fmtPct(drift)}` : "—"}
+                      {drift != null ? fmtPp(Math.abs(drift) < 0.05 ? 0 : drift) : "—"}
                     </td>
                   )}
                 </tr>
@@ -321,7 +321,7 @@ export function SalePlanner() {
 
       {plan && (
         <p className="text-xs text-slate-400 mt-3">
-          Based on live prices, which may be delayed up to 20 minutes. Taxable gains include AMIT cost base adjustments. Once a sale goes through, record it on the Trades page (or import your broker's export) with the price you actually got.
+          Based on live prices, which may be delayed up to 30 minutes. Taxable gains include AMIT cost base adjustments. Once a sale goes through, record it on the Trades page (or import your broker's export) with the price you actually got.
         </p>
       )}
     </div>

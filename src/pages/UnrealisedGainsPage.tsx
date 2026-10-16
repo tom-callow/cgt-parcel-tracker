@@ -324,7 +324,7 @@ export function UnrealisedGainsPage() {
       })()}
 
       <p className="text-xs text-slate-400 mt-3">
-        Prices fetched from Yahoo Finance (ASX). May be delayed up to 20 minutes. Effective gain applies 50% CGT discount to eligible parcels held &gt;12 months.
+        Prices fetched from Yahoo Finance (ASX). May be delayed up to 30 minutes. Effective gain applies 50% CGT discount to eligible parcels held &gt;12 months.
       </p>
     </div>
   )

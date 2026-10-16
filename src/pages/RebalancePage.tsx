@@ -2,12 +2,9 @@ import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 
 import { useLivePrices } from "../lib/useLivePrices"
-import { fmt, fmtPct } from "../lib/formatters"
+import { fmt, fmtPct, fmtPp } from "../lib/formatters"
 import { planContribution, type Contribution } from "../lib/rebalance"
 import { fetchPrices } from "../lib/marketData"
-
-const fmtPp = (n: number) =>
-  `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pp`
 
 // Adds a ticker you don't hold yet, after checking it has an ASX price
 function AddTickerForm({ existing, onAdd }: { existing: string[]; onAdd: (ticker: string, price: number) => void }) {
