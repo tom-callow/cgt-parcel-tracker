@@ -8,6 +8,11 @@ import { fmt, uniqueTickers } from "../lib/formatters"
 const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
 const labelCls = "block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
 
+function signedDollars(n: number, decimals: number): string {
+  const abs = decimals === 2 ? fmt(Math.abs(n)) : Math.abs(n).toFixed(decimals)
+  return `${n < 0 ? "−" : "+"}$${abs}`
+}
+
 export function AmitPage() {
   const { amitAdjustments, addAmitAdjustment, updateAmitAdjustment, deleteAmitAdjustment, parcels, disposals } =
     useAppState()
@@ -18,12 +23,23 @@ export function AmitPage() {
   const [formYear, setFormYear] = useState("")
   const [formTotal, setFormTotal] = useState("")
   const [error, setError] = useState("")
+  const [deleteTarget, setDeleteTarget] = useState<AmitAdjustment | null>(null)
 
   const tickers = uniqueTickers(parcels)
 
   const sorted = [...amitAdjustments].sort(
     (a, b) => a.ticker.localeCompare(b.ticker) || a.date.localeCompare(b.date)
   )
+  const groups: { ticker: string; rows: AmitAdjustment[]; net: number }[] = []
+  for (const a of sorted) {
+    const last = groups[groups.length - 1]
+    if (last?.ticker === a.ticker) {
+      last.rows.push(a)
+      last.net += a.totalAdjustment
+    } else {
+      groups.push({ ticker: a.ticker, rows: [a], net: a.totalAdjustment })
+    }
+  }
 
   function computeUnitsAtDate(ticker: string, date: string): number {
     const acquired = parcels
@@ -181,59 +197,82 @@ export function AmitPage() {
           <table className="w-full text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-700 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                <th className="px-4 py-3">Ticker</th>
                 <th className="px-4 py-3">FY</th>
-                <th className="px-4 py-3 text-right">Units at Date</th>
-                <th className="px-4 py-3 text-right">Total Adjustment ($)</th>
+                <th className="px-4 py-3 text-right">Units at 30 June</th>
+                <th className="px-4 py-3 text-right">Adjustment ($)</th>
                 <th className="px-4 py-3 text-right">Per Unit ($)</th>
-                <th className="px-4 py-3 text-right">Direction</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {sorted.map((a) => {
-                const perUnit = a.unitsAtDate > 0 ? a.totalAdjustment / a.unitsAtDate : 0
-                return (
-                  <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
-                    <td className="px-4 py-2.5 font-medium dark:text-slate-100">{a.ticker}</td>
-                    <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{getFinancialYear(a.date)}</td>
-                    <td className="px-4 py-2.5 text-right dark:text-slate-300">{fmt(a.unitsAtDate)}</td>
-                    <td className="px-4 py-2.5 text-right font-medium dark:text-slate-300">
-                      {a.totalAdjustment >= 0 ? "" : "−"}${fmt(Math.abs(a.totalAdjustment))}
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">
-                      {perUnit >= 0 ? "+" : "−"}${Math.abs(perUnit).toFixed(6)}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      {a.totalAdjustment >= 0 ? (
-                        <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded">
-                          Cost base ↑
-                        </span>
-                      ) : (
-                        <span className="text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded">
-                          Cost base ↓
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <button
-                        onClick={() => openEdit(a)}
-                        className="text-slate-400 hover:text-teal-600 text-xs mr-2"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => deleteAmitAdjustment(a.id)}
-                        className="text-slate-400 hover:text-red-600 dark:hover:text-red-400 text-xs"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
+            {groups.map(({ ticker, rows, net }) => (
+              <tbody key={ticker} className="divide-y divide-slate-100 dark:divide-slate-700 border-t border-slate-200 dark:border-slate-600">
+                <tr className="bg-slate-50/60 dark:bg-slate-700/40">
+                  <td colSpan={2} className="px-4 py-2 font-semibold text-slate-800 dark:text-slate-100">{ticker}</td>
+                  <td className="px-4 py-2 text-right font-semibold text-slate-800 dark:text-slate-100">
+                    <span className="text-xs font-normal text-slate-500 dark:text-slate-400 mr-2">Net</span>
+                    {signedDollars(net, 2)}
+                  </td>
+                  <td colSpan={2}></td>
+                </tr>
+                {rows.map((a) => {
+                  const perUnit = a.unitsAtDate > 0 ? a.totalAdjustment / a.unitsAtDate : 0
+                  return (
+                    <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
+                      <td className="pl-8 pr-4 py-2.5 text-slate-600 dark:text-slate-300">{getFinancialYear(a.date)}</td>
+                      <td className="px-4 py-2.5 text-right dark:text-slate-300">{fmt(a.unitsAtDate)}</td>
+                      <td className="px-4 py-2.5 text-right font-medium dark:text-slate-200">{signedDollars(a.totalAdjustment, 2)}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">
+                        {signedDollars(perUnit, 6)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          onClick={() => openEdit(a)}
+                          className="text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 text-xs font-medium px-1.5 py-1"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(a)}
+                          className="text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 text-xs font-medium px-1.5 py-1 ml-2"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            ))}
           </table>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2">Delete AMIT adjustment?</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">
+              <span className="font-medium">{deleteTarget.ticker}</span> {getFinancialYear(deleteTarget.date)} adjustment of{" "}
+              {signedDollars(deleteTarget.totalAdjustment, 2)}. Cost bases for this ticker will be recalculated without it.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 rounded text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteAmitAdjustment(deleteTarget.id)
+                  setDeleteTarget(null)
+                }}
+                className="px-4 py-2 rounded text-sm bg-red-600 text-white hover:bg-red-700 font-medium"
+              >
+                Delete adjustment
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
