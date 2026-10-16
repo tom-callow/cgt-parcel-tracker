@@ -83,7 +83,7 @@ Each page is a standalone component consuming `useAppState()`. Navigation is a `
   - Sales round up to whole units, or 4 decimal places when "fractional units" is ticked (saved per browser in localStorage `cgt-fractional-units`). Brokerage per trade is re-solved until the trade count settles. Rounding can make a wider band cost more than a narrower one, so the UI carries the cheaper narrower plan forward.
   - Uses live prices and includes AMIT adjustments in cost bases. It doesn't record sales — the user records actual fills on the Trades page.
 - **AmitPage** — manage AMIT cost base adjustments
-- **RebalancePage** — target allocation rebalancing recommendations. Inputs show the saved target unless mid-edit (`draftTargets` holds only in-progress edits), so external changes like undo appear without syncing.
+- **RebalancePage** — target allocation rebalancing recommendations. Inputs show the saved target unless mid-edit (`draftTargets` holds only in-progress edits), so external changes like undo appear without syncing. Contribution splits come from `planContribution` (`src/lib/rebalance.ts`): whole dollars that add up exactly to the amount invested, with no $100 rounding (Betashares buys are by dollar amount with fractional units).
 - **SaveLoadPage** — JSON import/export and CSV trade import
 
 Shared display helpers (`fmt`, `fmtPct`, `byDate`, `uniqueTickers`) live in `src/lib/formatters.ts`.

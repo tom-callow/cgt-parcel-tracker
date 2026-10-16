@@ -3,6 +3,10 @@ import { useAppState } from "../lib/AppContext"
 
 import { useLivePrices } from "../lib/useLivePrices"
 import { fmt, fmtPct } from "../lib/formatters"
+import { planContribution, type Contribution } from "../lib/rebalance"
+
+const fmtPp = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pp`
 
 export function RebalancePage() {
   const { parcels, rebalanceTargets, setRebalanceTargets } = useAppState()
@@ -54,24 +58,18 @@ export function RebalancePage() {
   const investAmt = parseFloat(investmentAmount.replace(/,/g, ""))
   const canRecommend = allPricesLoaded && targetsComplete && targetsSumTo100 && investAmt > 0
 
-  type Allocation = { ticker: string; amount: number; resultingPct: number }
-  let recommendation: Allocation[] | null = null
+  let recommendation: (Contribution & { resultingPct: number })[] | null = null
 
   if (canRecommend) {
     const newTotal = totalCurrentValue + investAmt
-    const deficits = tickers
-      .map((t) => ({
-        ticker: t,
-        deficit: Math.max(0, (parseFloat(targetText(t)) / 100) * newTotal - currentValues[t]),
+    const targetPcts = Object.fromEntries(tickers.map((t) => [t, parseFloat(targetText(t))]))
+    const plan = planContribution(investAmt, currentValues, targetPcts)
+    if (plan.length > 0) {
+      recommendation = plan.map(({ ticker, amount }) => ({
+        ticker,
+        amount,
+        resultingPct: ((currentValues[ticker] + amount) / newTotal) * 100,
       }))
-      .filter((d) => d.deficit > 0)
-    const totalDeficit = deficits.reduce((s, d) => s + d.deficit, 0)
-    if (totalDeficit > 0) {
-      recommendation = deficits.map(({ ticker, deficit }) => {
-        const amount = Math.round((investAmt * (deficit / totalDeficit)) / 100) * 100
-        const resultingPct = ((currentValues[ticker] + amount) / newTotal) * 100
-        return { ticker, amount, resultingPct }
-      })
     }
   }
 
@@ -151,6 +149,7 @@ export function RebalancePage() {
               <th className="px-4 py-3 text-right">Current Alloc</th>
               <th className="px-4 py-3 text-right">Target Alloc</th>
               <th className="px-4 py-3 text-right">Variance</th>
+              <th className="px-4 py-3 text-right">To Target</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -162,6 +161,10 @@ export function RebalancePage() {
               const targetPct = parseFloat(targetText(h.ticker))
               const variance = currentPct != null && !isNaN(targetPct)
                 ? currentPct - targetPct
+                : null
+              // The trade that would bring this holding exactly to target at today's prices
+              const toTarget = currentValue != null && targetsComplete && targetsSumTo100
+                ? (targetPct / 100) * totalCurrentValue - currentValue
                 : null
 
               return (
@@ -204,13 +207,21 @@ export function RebalancePage() {
                     </div>
                   </td>
                   <td className={`px-4 py-2.5 text-right font-medium ${
-                    variance == null ? "" :
-                    Math.abs(variance) < 0.05 ? "text-slate-400" :
-                    variance > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
+                    variance != null && Math.abs(variance) < 0.05 ? "text-slate-400" : "dark:text-slate-300"
                   }`}>
                     {variance != null
-                      ? `${variance > 0 ? "+" : ""}${fmtPct(variance)}`
+                      ? fmtPp(Math.abs(variance) < 0.05 ? 0 : variance)
                       : <span className="text-slate-300 dark:text-slate-600 font-normal">—</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-right dark:text-slate-300">
+                    {toTarget == null || Math.abs(toTarget) < 0.5 ? (
+                      <span className="text-slate-300 dark:text-slate-600">—</span>
+                    ) : (
+                      <>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 mr-1.5">{toTarget > 0 ? "Buy" : "Sell"}</span>
+                        ${fmt(Math.abs(toTarget))}
+                      </>
+                    )}
                   </td>
                 </tr>
               )
@@ -235,6 +246,7 @@ export function RebalancePage() {
                   {targetsComplete ? fmtPct(targetSum) : "—"}
                 </span>
               </td>
+              <td className="px-4 py-3" />
               <td className="px-4 py-3" />
             </tr>
           </tbody>
@@ -309,7 +321,7 @@ export function RebalancePage() {
       )}
 
       <p className="text-xs text-slate-400 mt-3">
-        Prices fetched from Yahoo Finance (ASX). May be delayed up to 20 minutes. Target allocations are saved automatically.
+        Prices fetched from Yahoo Finance (ASX). May be delayed up to 30 minutes. Target allocations are saved automatically.
       </p>
     </div>
   )
