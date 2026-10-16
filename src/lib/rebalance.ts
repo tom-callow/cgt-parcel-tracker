@@ -1,3 +1,5 @@
+import { planHoldingSale, type HoldingSaleInput } from "./withdrawal"
+
 export type Contribution = { ticker: string; amount: number }
 
 // Splits `total` across `weights` in whole dollars that add up exactly to `total`
@@ -41,4 +43,25 @@ export function planContribution(
   return deficits
     .map(({ ticker }, i) => ({ ticker, amount: amounts[i] }))
     .filter((c) => c.amount > 0)
+}
+
+// Net capital gain (negative = net capital loss) from selling `cash` worth of one holding in
+// lowest-tax parcel order, as the Sale Optimiser would. Losses offset gross gains before the CGT
+// discount, so the sign comes from the gross total — summing per-parcel discounted gains can
+// show a loss when the sale actually makes a net gain. Null if the sale isn't possible.
+export function rebalanceSaleGain(
+  input: Omit<HoldingSaleInput, "sell" | "targets" | "brokeragePerTrade" | "fractional"> & { cash: number },
+): number | null {
+  try {
+    const plan = planHoldingSale({
+      ...input,
+      targets: null,
+      brokeragePerTrade: 0,
+      fractional: true,
+      sell: { cash: input.cash },
+    })
+    return plan.sales.reduce((s, sale) => s + sale.parcels.reduce((t, p) => t + p.grossGain, 0), 0)
+  } catch {
+    return null
+  }
 }

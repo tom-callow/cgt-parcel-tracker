@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest"
-import { planContribution, splitWholeDollars } from "./rebalance"
+import { planContribution, rebalanceSaleGain, splitWholeDollars } from "./rebalance"
+import { computeCostBase } from "./cgt"
+import type { Parcel } from "./types"
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0)
 
@@ -43,5 +45,33 @@ describe("planContribution", () => {
   it("never totals more than the amount invested", () => {
     const plan = planContribution(150, { ABC: 4925, XYZ: 4925 }, { ABC: 50, XYZ: 50 })
     expect(sum(plan.map((c) => c.amount))).toBe(150)
+  })
+})
+
+describe("rebalanceSaleGain", () => {
+  function parcel(id: string, date: string, units: number, unitPrice: number): Parcel {
+    return { id, ticker: "ABC", date, units, unitPrice, brokerage: 0, costBase: computeCostBase(units, unitPrice, 0), unitsRemaining: units }
+  }
+  // Price 100: an old parcel with a $50 discounted gain and a recent one with a $40 loss
+  const base = {
+    parcels: [parcel("old", "2020-01-01", 1, 50), parcel("new", "2026-01-01", 1, 140)],
+    prices: { ABC: 100 },
+    date: "2026-06-01",
+    entityType: "individual" as const,
+    amitAdjustments: [],
+    ticker: "ABC",
+  }
+
+  it("is negative when the sale only touches loss-making parcels", () => {
+    expect(rebalanceSaleGain({ ...base, cash: 100 })).toBeCloseTo(-40)
+  })
+
+  it("nets losses against gross gains before the discount", () => {
+    // Per-parcel discounted total would be 25 − 40 = −15, but the net capital gain is 50 − 40 = +10
+    expect(rebalanceSaleGain({ ...base, cash: 200 })).toBeCloseTo(10)
+  })
+
+  it("is null when the sale is bigger than the holding", () => {
+    expect(rebalanceSaleGain({ ...base, cash: 1000 })).toBeNull()
   })
 })

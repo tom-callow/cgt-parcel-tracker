@@ -3,7 +3,7 @@ import { useAppState } from "../lib/AppContext"
 
 import { useLivePrices } from "../lib/useLivePrices"
 import { fmt, fmtPct, fmtPp } from "../lib/formatters"
-import { planContribution, type Contribution } from "../lib/rebalance"
+import { planContribution, rebalanceSaleGain, type Contribution } from "../lib/rebalance"
 import { fetchPrices } from "../lib/marketData"
 
 // Adds a ticker you don't hold yet, after checking it has an ASX price
@@ -57,7 +57,7 @@ function AddTickerForm({ existing, onAdd }: { existing: string[]; onAdd: (ticker
 }
 
 export function RebalancePage() {
-  const { parcels, rebalanceTargets, setRebalanceTargets } = useAppState()
+  const { parcels, rebalanceTargets, setRebalanceTargets, entityType, amitAdjustments } = useAppState()
   const [investmentAmount, setInvestmentAmount] = useState("")
   const [draftTargets, setDraftTargets] = useState<Record<string, string>>({})
   // Prices looked up when adding a ticker, until the next full refresh includes it
@@ -82,6 +82,8 @@ export function RebalancePage() {
   })()
 
   const tickers = holdings.map((h) => h.ticker)
+  const heldParcels = parcels.filter((p) => p.unitsRemaining > 0)
+  const today = new Date().toLocaleDateString("en-CA")
   const { prices: livePrices, loading, lastUpdated, refresh: refreshPrices } = useLivePrices(tickers)
   const prices: Record<string, number | null> = { ...addedPrices, ...livePrices }
 
@@ -240,6 +242,18 @@ export function RebalancePage() {
               const toTarget = currentValue != null && targetsComplete && targetsSumTo100
                 ? (targetPct / 100) * totalCurrentValue - currentValue
                 : null
+              // For a sell, the net capital gain it would realise (negative = a loss)
+              const saleGain = toTarget != null && toTarget <= -0.5
+                ? rebalanceSaleGain({
+                    parcels: heldParcels,
+                    prices: prices as Record<string, number>,
+                    date: today,
+                    entityType,
+                    amitAdjustments,
+                    ticker: h.ticker,
+                    cash: -toTarget,
+                  })
+                : null
 
               return (
                 <tr key={h.ticker} className="hover:bg-slate-50 dark:hover:bg-slate-700">
@@ -307,6 +321,14 @@ export function RebalancePage() {
                       <span className="text-slate-300 dark:text-slate-600">—</span>
                     ) : (
                       <>
+                        {saleGain != null && saleGain < 0 && (
+                          <span
+                            title={`Selling this amount (lowest-tax parcels first) would realise a net capital loss of $${fmt(-saleGain)}`}
+                            className="text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 px-1.5 py-0.5 rounded mr-2"
+                          >
+                            Capital loss −${fmt(-saleGain)}
+                          </span>
+                        )}
                         <span className="text-xs text-slate-500 dark:text-slate-400 mr-1.5">{toTarget > 0 ? "Buy" : "Sell"}</span>
                         ${fmt(Math.abs(toTarget))}
                       </>
@@ -414,7 +436,7 @@ export function RebalancePage() {
       )}
 
       <p className="text-xs text-slate-400 mt-3">
-        Prices fetched from Yahoo Finance (ASX). May be delayed up to 30 minutes. Target allocations are saved automatically.
+        Prices fetched from Yahoo Finance (ASX). May be delayed up to 30 minutes. Target allocations are saved automatically. Sells are checked against your parcels in lowest-tax order (including AMIT adjustments) and tagged when they would realise a net capital loss.
       </p>
     </div>
   )
