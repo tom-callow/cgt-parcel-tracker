@@ -54,10 +54,8 @@ export function TaxStatementsPage() {
                     <td className="px-5 py-2.5 text-right text-emerald-700 dark:text-emerald-400">${fmt(r.grossGains)}</td>
                     <td className="px-5 py-2.5 text-right text-red-600 dark:text-red-400">${fmt(r.grossLosses)}</td>
                     <td className="px-5 py-2.5 text-right">${fmt(r.netGainBeforeDiscount)}</td>
-                    <td className="px-5 py-2.5 text-right">${fmt(r.discountAmount)}</td>
-                    <td className={`px-5 py-2.5 text-right font-semibold ${r.netTaxableGain >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                      ${fmt(r.netTaxableGain)}
-                    </td>
+                    <td className="px-5 py-2.5 text-right text-slate-300 dark:text-slate-600">—</td>
+                    <td className="px-5 py-2.5 text-right text-slate-300 dark:text-slate-600">—</td>
                   </tr>
                 ))}
                 <tr className="bg-slate-50 dark:bg-slate-700 font-semibold">
@@ -76,6 +74,14 @@ export function TaxStatementsPage() {
         ))
       )}
 
+      {summaries.length > 0 && (
+        <p className="text-xs text-slate-400 mt-4">
+          Capital losses are applied to gross gains for the whole year before the 50% discount —
+          first against gains that aren't eligible for the discount, then against eligible ones — so
+          the discount and net taxable gain are shown for the year, not per ticker. Capital losses
+          carried forward from earlier years, and gains from assets not tracked here, aren't included.
+        </p>
+      )}
       <p className="text-xs text-slate-400 mt-4 italic">
         This is a tool only and does not constitute tax advice. Verify all figures with a qualified tax adviser.
       </p>

@@ -388,13 +388,13 @@ export function executeManualDisposal(
 
 // ── Tax summary ─────────────────────────────────────────────────────
 
+// Per-ticker rows show gross figures only: losses offset gains across the whole year before the
+// discount, so the discount and net taxable gain exist only for the year as a whole
 export type FYSummaryRow = {
   ticker: string
   grossGains: number
   grossLosses: number
   netGainBeforeDiscount: number
-  discountAmount: number
-  netTaxableGain: number
 }
 
 export type FYSummary = {
@@ -422,73 +422,32 @@ export function computeFYSummary(
   const summaries: FYSummary[] = []
 
   for (const [fy, fyDisposals] of byFY) {
-    // Retain disposal date alongside each ParcelUsage so we can apply AMIT adjustments correctly
-    const byTicker = new Map<string, { pu: ParcelUsage; disposalDate: string }[]>()
-
+    // AMIT-adjusted gross gain of every parcel sold this year, grouped by ticker
+    const byTicker = new Map<string, { grossGain: number; discountEligible: boolean }[]>()
     for (const d of fyDisposals) {
       for (const pu of d.parcelsUsed) {
+        const amitAdj = calcAmitAdjPerUnit(d.ticker, pu.acquisitionDate, d.date, amitAdjustments) * pu.units
         if (!byTicker.has(d.ticker)) byTicker.set(d.ticker, [])
-        byTicker.get(d.ticker)!.push({ pu, disposalDate: d.date })
+        byTicker.get(d.ticker)!.push({ grossGain: pu.grossGain - amitAdj, discountEligible: pu.discountEligible })
       }
     }
 
-    const rows: FYSummaryRow[] = []
-
-    for (const [ticker, usages] of byTicker) {
-      let grossGains = 0
-      let grossLosses = 0
-      let totalDiscountedGain = 0
-
-      for (const { pu, disposalDate } of usages) {
-        const amitAdj = calcAmitAdjPerUnit(ticker, pu.acquisitionDate, disposalDate, amitAdjustments) * pu.units
-        const effectiveGrossGain = pu.grossGain - amitAdj
-        const effectiveDiscountedGain =
-          effectiveGrossGain > 0
-            ? effectiveGrossGain * discountMultiplier(pu.discountEligible)
-            : effectiveGrossGain
-
-        if (effectiveGrossGain >= 0) {
-          grossGains += effectiveGrossGain
-        } else {
-          grossLosses += effectiveGrossGain // negative number
-        }
-        totalDiscountedGain += effectiveDiscountedGain
-      }
-
-      const netGainBeforeDiscount = grossGains + grossLosses
-      const discountAmount = netGainBeforeDiscount > 0
-        ? netGainBeforeDiscount - totalDiscountedGain
-        : 0
-      const netTaxableGain = netGainBeforeDiscount > 0
-        ? totalDiscountedGain
-        : netGainBeforeDiscount
-
-      rows.push({
-        ticker,
-        grossGains,
-        grossLosses,
-        netGainBeforeDiscount,
-        discountAmount,
-        netTaxableGain,
+    const rows: FYSummaryRow[] = [...byTicker]
+      .map(([ticker, items]) => {
+        const { grossGains, grossLosses, netGainBeforeDiscount } = netCapitalGain(items)
+        return { ticker, grossGains, grossLosses, netGainBeforeDiscount }
       })
-    }
+      .sort((a, b) => a.ticker.localeCompare(b.ticker))
 
-    rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
-
-    const totalGrossGains = rows.reduce((s, r) => s + r.grossGains, 0)
-    const totalGrossLosses = rows.reduce((s, r) => s + r.grossLosses, 0)
-    const netGainBeforeDiscount = totalGrossGains + totalGrossLosses
-    const discountAmount = rows.reduce((s, r) => s + r.discountAmount, 0)
-    const netTaxableGain = rows.reduce((s, r) => s + r.netTaxableGain, 0)
-
+    const year = netCapitalGain([...byTicker.values()].flat())
     summaries.push({
       fy,
       rows,
-      totalGrossGains,
-      totalGrossLosses,
-      netGainBeforeDiscount,
-      discountAmount,
-      netTaxableGain,
+      totalGrossGains: year.grossGains,
+      totalGrossLosses: year.grossLosses,
+      netGainBeforeDiscount: year.netGainBeforeDiscount,
+      discountAmount: year.discountAmount,
+      netTaxableGain: year.netTaxableGain,
     })
   }
 

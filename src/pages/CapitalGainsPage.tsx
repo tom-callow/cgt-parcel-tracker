@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react"
 import { useAppState } from "../lib/AppContext"
-import { getFinancialYear, fmtDate, calcAmitAdjPerUnit } from "../lib/cgt"
+import { getFinancialYear, fmtDate, calcAmitAdjPerUnit, netCapitalGain } from "../lib/cgt"
 import { fmt, byDate, uniqueTickers } from "../lib/formatters"
 
 export function CapitalGainsPage() {
@@ -77,21 +77,15 @@ export function CapitalGainsPage() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filtered.map((d) => {
                 let totalCost = 0
-                let grossGain = 0
-                let discountedGain = 0
+                const gains: { grossGain: number; discountEligible: boolean }[] = []
                 for (const pu of d.parcelsUsed) {
                   const amitAdj = calcAmitAdjPerUnit(d.ticker, pu.acquisitionDate, d.date, amitAdjustments) * pu.units
-                  const effectiveCostBase = pu.costBase + amitAdj
-                  const effectiveGrossGain = pu.grossGain - amitAdj
-                  const effectiveDiscountedGain =
-                    effectiveGrossGain > 0
-                      ? effectiveGrossGain * (pu.discountEligible ? 0.5 : 1)
-                      : effectiveGrossGain
-                  totalCost += effectiveCostBase
-                  grossGain += effectiveGrossGain
-                  discountedGain += effectiveDiscountedGain
+                  totalCost += pu.costBase + amitAdj
+                  gains.push({ grossGain: pu.grossGain - amitAdj, discountEligible: pu.discountEligible })
                 }
-                const discountAmt = grossGain > 0 ? grossGain - discountedGain : 0
+                // This sale on its own; the Tax Summary nets losses across the whole year
+                const { netGainBeforeDiscount: grossGain, discountAmount: discountAmt, netTaxableGain: discountedGain } =
+                  netCapitalGain(gains)
                 const expanded = expandedId === d.id
 
                 return (
@@ -179,6 +173,13 @@ export function CapitalGainsPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {filtered.length > 0 && (
+        <p className="text-xs text-slate-400 mt-3">
+          Discount and net taxable are for each sale on its own, with any losses in the sale applied
+          before the discount. The Tax Summary nets losses across the whole financial year.
+        </p>
       )}
     </div>
   )

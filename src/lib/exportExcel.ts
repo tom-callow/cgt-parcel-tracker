@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx-js-style"
 import type { Parcel, Disposal, AmitAdjustment, EntityType } from "./types"
-import { calcAmitAdjPerUnit, getFinancialYear, fmtDate } from "./cgt"
+import { calcAmitAdjPerUnit, getFinancialYear, fmtDate, netCapitalGain } from "./cgt"
 import { toExcelDate } from "./excelDate"
 
 // ─── Colours ─────────────────────────────────────────────────────────────────
@@ -35,8 +35,12 @@ const C = {
 //  O  Gross Gain/Loss     FORMULA =N-M
 //  P  Held >12 Months     FORMULA =IF(EDATE(I,12)<C,"Yes","No")  (EDATE clamps 29 Feb → 28 Feb)
 //  Q  CGT Discount Elig.  FORMULA =IF(AND(P="Yes",$B$5<>"company"),"Yes","No")
-//  R  Discount Amount     FORMULA =IF(AND(Q="Yes",O>0),O*$F$5,0)
+//  R  Discount Amount     FORMULA =IF(AND(Q="Yes",O>0),O*$F$5,0)  (this parcel on its own)
 //  S  Net Taxable Gain    FORMULA =O-R
+//
+//  Disposal subtotals net the sale's losses against its gross gains before the discount (see
+//  nettedDiscount). The grand total stops at gross gain: losses net across a whole financial
+//  year, which the Summary sheet does per FY.
 
 const DC = {
   FY: 0, TICKER: 1, DISP_DATE: 2, METHOD: 3,
@@ -58,6 +62,16 @@ const D_FIRST_DATA = 8
 const MAX_ROW = 10000
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Excel formula for the CGT discount once losses are netted, mirroring netCapitalGain in cgt.ts:
+ * losses reduce non-discountable gains first, then discountable ones, and the discount applies
+ * to the discountable gain left. `discountable`, `other` and `losses` are formula expressions;
+ * `losses` is negative.
+ */
+export function nettedDiscount(discountable: string, other: string, losses: string, rate: string): string {
+  return `MAX(0,(${discountable})-MAX(0,-(${losses})-(${other})))*${rate}`
+}
 
 /** Column letter(s) for a 0-indexed column */
 function colLetter(col: number): string {
@@ -229,7 +243,7 @@ export function buildDetailSheet(
     hdrCell("Gross Gain/Loss ($)\n=N−M"),
     hdrCell("Held\n>12mo?"),
     hdrCell("CGT\nDiscount?"),
-    hdrCell("Discount Amt ($)\n=O×disc rate"),
+    hdrCell("Discount Amt ($)\nparcel: O×disc rate\nsale: losses netted first"),
     hdrCell("Net Taxable ($)\n=O−R"),
   ])
 
@@ -319,12 +333,19 @@ export function buildDetailSheet(
     const kRange = `${addr(DC.RAW_COST, parcelStartExcel)}:${addr(DC.RAW_COST, parcelEndExcel)}`
     const lRange = `${addr(DC.AMIT,     parcelStartExcel)}:${addr(DC.AMIT,     parcelEndExcel)}`
     const mRange = `${addr(DC.ADJ_COST, parcelStartExcel)}:${addr(DC.ADJ_COST, parcelEndExcel)}`
-    const rRange = `${addr(DC.DISC_AMT, parcelStartExcel)}:${addr(DC.DISC_AMT, parcelEndExcel)}`
+    const oRange = `${addr(DC.GROSS_GAIN, parcelStartExcel)}:${addr(DC.GROSS_GAIN, parcelEndExcel)}`
+    const qRange = `${addr(DC.DISC_ELIG,  parcelStartExcel)}:${addr(DC.DISC_ELIG,  parcelEndExcel)}`
 
     const M_sr = addr(DC.ADJ_COST,   sr)
     const N_sr = addr(DC.PARC_PROC,  sr)
     const O_sr = addr(DC.GROSS_GAIN, sr)
     const R_sr = addr(DC.DISC_AMT,   sr)
+    const saleDiscountFormula = nettedDiscount(
+      `SUMIFS(${oRange},${qRange},"Yes",${oRange},">0")`,
+      `SUMIFS(${oRange},${qRange},"No",${oRange},">0")`,
+      `SUMIF(${oRange},"<0")`,
+      DISC_RATE_REF,
+    )
     const G_sr = addr(DC.PROCEEDS,   sr)
 
     // Total values for cached results in subtotal row
@@ -333,13 +354,11 @@ export function buildDetailSheet(
       return s + pu.costBase + adj
     }, 0)
     const totalGrossGain = d.proceeds - totalAdjCost
-    const totalDiscount  = d.parcelsUsed.reduce((s, pu) => {
+    const totalDiscount  = netCapitalGain(d.parcelsUsed.map((pu) => {
       const adj = calcAmitAdjPerUnit(d.ticker, pu.acquisitionDate, d.date, amitAdjustments) * pu.units
-      const adjCost = pu.costBase + adj
       const proc = (pu.units / d.units) * d.proceeds
-      const g = proc - adjCost
-      return s + (g > 0 && pu.discountEligible ? g * discRate : 0)
-    }, 0)
+      return { grossGain: proc - (pu.costBase + adj), discountEligible: pu.discountEligible && discRate > 0 }
+    })).discountAmount
     const totalNet       = totalGrossGain - totalDiscount
 
     const subRow: Cell[] = emptyRow(NCOLS, subFill)
@@ -367,7 +386,7 @@ export function buildDetailSheet(
     subRow[DC.GROSS_GAIN] = fNum(totalGrossGain,  `${N_sr}-${M_sr}`,   { bold: true, fill: subFill, gain: true })
     subRow[DC.HELD]       = blankCell(subFill)
     subRow[DC.DISC_ELIG]  = blankCell(subFill)
-    subRow[DC.DISC_AMT]   = fNum(totalDiscount, `SUM(${rRange})`,     { bold: true, fill: subFill })
+    subRow[DC.DISC_AMT]   = fNum(totalDiscount, saleDiscountFormula,  { bold: true, fill: subFill })
     subRow[DC.NET_TAX]    = fNum(totalNet,       `${O_sr}-${R_sr}`,   { bold: true, fill: subFill, gain: true })
 
     rows.push(subRow)
@@ -391,33 +410,19 @@ export function buildDetailSheet(
   }, 0)
   const grandProceeds = sorted.reduce((s, d) => s + d.proceeds, 0)
   const grandGross    = grandProceeds - grandAdjCost
-  const grandDiscount = sorted.reduce((s, d) => {
-    return s + d.parcelsUsed.reduce((ps, pu) => {
-      const adj = calcAmitAdjPerUnit(d.ticker, pu.acquisitionDate, d.date, amitAdjustments) * pu.units
-      const adjCost = pu.costBase + adj
-      const proc = (pu.units / d.units) * d.proceeds
-      const g = proc - adjCost
-      return ps + (g > 0 && pu.discountEligible ? g * discRate : 0)
-    }, 0)
-  }, 0)
-  const grandNet      = grandGross - grandDiscount
 
   const M_gt = addr(DC.ADJ_COST,   gtr)
   const N_gt = addr(DC.PARC_PROC,  gtr)
-  const O_gt = addr(DC.GROSS_GAIN, gtr)
-  const R_gt = addr(DC.DISC_AMT,   gtr)
 
   const grandRow: Cell[] = emptyRow(NCOLS, C.navy)
   grandRow[DC.TICKER]    = strCell("GRAND TOTAL", { bold: true, fill: C.navy, color: C.white })
   grandRow[DC.ADJ_COST]  = fNum(grandAdjCost,  sumCells(DC.ADJ_COST),  { bold: true, fill: C.navy })
   grandRow[DC.PARC_PROC] = fNum(grandProceeds, sumCells(DC.PARC_PROC), { bold: true, fill: C.navy })
   grandRow[DC.GROSS_GAIN]= fNum(grandGross,    `${N_gt}-${M_gt}`,      { bold: true, fill: C.navy, gain: true })
-  grandRow[DC.DISC_AMT]  = fNum(grandDiscount, sumCells(DC.DISC_AMT),  { bold: true, fill: C.navy })
-  grandRow[DC.NET_TAX]   = fNum(grandNet,      `${O_gt}-${R_gt}`,      { bold: true, fill: C.navy, gain: true })
+  grandRow[DC.HELD]      = strCell("Net taxable gain by FY: see Summary sheet", { fill: C.navy, color: C.white, italic: true })
 
   // Override colour for grand total gain/loss (use white text instead of green/red on dark bg)
   ;(grandRow[DC.GROSS_GAIN].s as Record<string, unknown>).font = { bold: true, color: { rgb: C.white } }
-  ;(grandRow[DC.NET_TAX].s   as Record<string, unknown>).font = { bold: true, color: { rgb: C.white } }
 
   rows.push(grandRow)
 
@@ -436,19 +441,23 @@ export function buildDetailSheet(
 
 // ─── Summary sheet ────────────────────────────────────────────────────────────
 //
-// Each data cell references the Detail sheet via SUMPRODUCT.
+// Each data cell references the Detail sheet via SUMIFS.
 // Column layout:
-//   A  FY               (value)
-//   B  Ticker           (value)
-//   C  Gross Gains      SUMPRODUCT from Detail col O (positive)
-//   D  Gross Losses     SUMPRODUCT from Detail col O (negative)
-//   E  Net Before Disc  FORMULA =C+D
-//   F  CGT Discount     SUMPRODUCT from Detail col R
-//   G  Net Taxable      FORMULA =E-F
-//   H  Note             (value)
+//   A  FY                   (value)
+//   B  Ticker               (value)
+//   C  Discountable Gains   SUMIFS Detail col O (>0, col Q = "Yes")
+//   D  Other Gains          SUMIFS Detail col O (>0, col Q = "No")
+//   E  Losses               SUMIFS Detail col O (<0)
+//   F  Net Before Discount  FORMULA =C+D+E
+//   G  CGT Discount         FY total only: losses net against D then C, discount on C left
+//   H  Net Taxable Gain     FY total only: =F−G
+//   I  Note                 (value)
+//
+// Losses offset gains across the whole year before the discount, so G and H only exist on the
+// FY total row — splitting them per ticker would misstate them.
 
-const SC = { FY: 0, TICKER: 1, GAINS: 2, LOSSES: 3, NET_BEF: 4, DISC: 5, NET_TAX: 6, NOTE: 7 }
-const S_NCOLS = 8
+const SC = { FY: 0, TICKER: 1, DISC_GAINS: 2, OTHER_GAINS: 3, LOSSES: 4, NET_BEF: 5, DISC: 6, NET_TAX: 7, NOTE: 8 }
+const S_NCOLS = 9
 const DETAIL_SHEET = "'Parcel Detail'"
 
 function detailRange(col: number): string {
@@ -456,25 +465,24 @@ function detailRange(col: number): string {
   return `${DETAIL_SHEET}!$${c}$${D_FIRST_DATA}:$${c}$${MAX_ROW}`
 }
 
-function summaryFormulas(
-  fyRef: string,
-  tickerRef: string,
-): { gains: string; losses: string; disc: string } {
+function summaryFormulas(fyRef: string, tickerRef: string) {
   const fyRange     = detailRange(DC.FY)
   const tickerRange = detailRange(DC.TICKER)
   const oRange      = detailRange(DC.GROSS_GAIN)
-  const rRange      = detailRange(DC.DISC_AMT)
+  const qRange      = detailRange(DC.DISC_ELIG)
+  const match       = `${fyRange},${fyRef},${tickerRange},${tickerRef}`
 
-  const gains  = `SUMIFS(${oRange},${fyRange},${fyRef},${tickerRange},${tickerRef},${oRange},">0")`
-  const losses = `SUMIFS(${oRange},${fyRange},${fyRef},${tickerRange},${tickerRef},${oRange},"<0")`
-  const disc   = `SUMIFS(${rRange},${fyRange},${fyRef},${tickerRange},${tickerRef})`
-
-  return { gains, losses, disc }
+  return {
+    discGains:  `SUMIFS(${oRange},${match},${qRange},"Yes",${oRange},">0")`,
+    otherGains: `SUMIFS(${oRange},${match},${qRange},"No",${oRange},">0")`,
+    losses:     `SUMIFS(${oRange},${match},${oRange},"<0")`,
+  }
 }
 
 export function buildSummarySheet(
   disposals: Disposal[],
   amitAdjustments: AmitAdjustment[],
+  entityType: EntityType,
   fyLabel: string,
 ): XLSX.WorkSheet {
   const rows: Cell[][] = []
@@ -484,36 +492,36 @@ export function buildSummarySheet(
     `Generated: ${new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "long", year: "numeric" })}` +
     `   |   All figures are formula-driven from the "Parcel Detail" sheet.`
   )])
+  rows.push([metaCell(
+    "Capital losses reduce gains for the whole financial year before the 50% discount: first gains not eligible " +
+    "for the discount, then eligible ones. Losses carried forward from earlier years aren't included."
+  )])
   rows.push(emptyRow(S_NCOLS))
 
-  // Aggregate per FY + ticker (for cached values & ordering)
-  type AggRow = { fy: string; ticker: string; gains: number; losses: number; disc: number; net: number }
-  const aggMap = new Map<string, AggRow>()
-
+  // AMIT-adjusted gross gain of every parcel sold, per FY + ticker (cached values & ordering)
+  const discountable = entityType !== "company"
+  type Item = { grossGain: number; discountEligible: boolean }
+  const byKey = new Map<string, { fy: string; ticker: string; items: Item[] }>()
   for (const d of disposals) {
     const fy = getFinancialYear(d.date)
+    const key = `${fy}|${d.ticker}`
+    if (!byKey.has(key)) byKey.set(key, { fy, ticker: d.ticker, items: [] })
     for (const pu of d.parcelsUsed) {
-      const key = `${fy}|${d.ticker}`
-      if (!aggMap.has(key)) aggMap.set(key, { fy, ticker: d.ticker, gains: 0, losses: 0, disc: 0, net: 0 })
-      const row = aggMap.get(key)!
-      const amitAdj    = calcAmitAdjPerUnit(d.ticker, pu.acquisitionDate, d.date, amitAdjustments) * pu.units
-      const adjCost    = pu.costBase + amitAdj
-      const proc       = (pu.units / d.units) * d.proceeds
-      const grossGain  = proc - adjCost
-      const discRate   = pu.discountEligible ? 0.5 : 0  // NOTE: company check done via Detail col Q
-      const discountAmt = grossGain > 0 && pu.discountEligible ? grossGain * discRate : 0
-      if (grossGain >= 0) row.gains += grossGain; else row.losses += grossGain
-      row.disc += discountAmt
+      const amitAdj = calcAmitAdjPerUnit(d.ticker, pu.acquisitionDate, d.date, amitAdjustments) * pu.units
+      const proc    = (pu.units / d.units) * d.proceeds
+      byKey.get(key)!.items.push({
+        grossGain: proc - (pu.costBase + amitAdj),
+        discountEligible: pu.discountEligible && discountable,
+      })
     }
   }
-  for (const row of aggMap.values()) {
-    row.net = row.gains + row.losses - row.disc
-  }
+  const sumWhere = (items: Item[], pred: (i: Item) => boolean) =>
+    items.filter(pred).reduce((s, i) => s + i.grossGain, 0)
 
-  const aggRows = [...aggMap.values()].sort((a, b) => a.fy.localeCompare(b.fy) || a.ticker.localeCompare(b.ticker))
+  const aggRows = [...byKey.values()].sort((a, b) => a.fy.localeCompare(b.fy) || a.ticker.localeCompare(b.ticker))
   const fys     = [...new Set(aggRows.map((r) => r.fy))]
 
-  let rowIdx = 3  // already pushed 3 rows (0-indexed: 0,1,2)
+  let rowIdx = rows.length
 
   for (const fy of fys) {
     const fyRows = aggRows.filter((r) => r.fy === fy)
@@ -527,11 +535,12 @@ export function buildSummarySheet(
     // Column headers
     rows.push([
       hdrCell("FY"), hdrCell("Ticker"),
-      hdrCell("Gross Gains ($)\nSUMPRODUCT from Detail"),
-      hdrCell("Gross Losses ($)\nSUMPRODUCT from Detail"),
-      hdrCell("Net Before Discount ($)\n=C+D"),
-      hdrCell("CGT Discount ($)\nSUMPRODUCT from Detail"),
-      hdrCell("Net Taxable Gain ($)\n=E−F"),
+      hdrCell("Discountable Gains ($)\nheld >12mo"),
+      hdrCell("Other Gains ($)\nnot discountable"),
+      hdrCell("Losses ($)"),
+      hdrCell("Net Before Discount ($)\n=C+D+E"),
+      hdrCell("CGT Discount ($)\nlosses netted first"),
+      hdrCell("Net Taxable Gain ($)\n=F−G"),
       hdrCell("Notes"),
     ])
     rowIdx++
@@ -542,62 +551,62 @@ export function buildSummarySheet(
       rowIdx++
       const r    = rowIdx  // 1-indexed Excel row
       const fill = idx % 2 === 0 ? C.offWhite : C.white
+      const f    = summaryFormulas(addr(SC.FY, r), addr(SC.TICKER, r))
 
-      const fyRef     = `${addr(SC.FY,     r)}`
-      const tickerRef = `${addr(SC.TICKER, r)}`
-      const { gains, losses, disc } = summaryFormulas(fyRef, tickerRef)
+      const discGains  = sumWhere(agg.items, (i) => i.grossGain > 0 && i.discountEligible)
+      const otherGains = sumWhere(agg.items, (i) => i.grossGain > 0 && !i.discountEligible)
+      const losses     = sumWhere(agg.items, (i) => i.grossGain < 0)
 
-      const net = agg.gains + agg.losses - agg.disc
-      const note = agg.disc > 0
-        ? "50% discount applied to eligible gains"
-        : agg.gains === 0 ? "Capital loss only" : ""
-
-      const dataRow: Cell[] = []
-      dataRow[SC.FY]      = strCell(agg.fy,     { fill })
-      dataRow[SC.TICKER]  = strCell(agg.ticker,  { fill })
-      const C_ = addr(SC.GAINS,   r)
-      const D_ = addr(SC.LOSSES,  r)
-      const E_ = addr(SC.NET_BEF, r)
-      const F_ = addr(SC.DISC,    r)
-
-      dataRow[SC.GAINS]   = fNum(agg.gains,  gains,  { fill })
-      dataRow[SC.LOSSES]  = fNum(agg.losses, losses, { fill })
-      dataRow[SC.NET_BEF] = fNum(agg.gains + agg.losses, `${C_}+${D_}`, { fill, gain: true })
-      dataRow[SC.DISC]    = fNum(agg.disc,   disc,   { fill })
-      dataRow[SC.NET_TAX] = fNum(net,        `${E_}-${F_}`, { fill, gain: true })
-      dataRow[SC.NOTE]    = strCell(note, { fill, italic: true, color: C.slate })
+      const dataRow: Cell[] = emptyRow(S_NCOLS, fill)
+      dataRow[SC.FY]          = strCell(agg.fy,     { fill })
+      dataRow[SC.TICKER]      = strCell(agg.ticker, { fill })
+      dataRow[SC.DISC_GAINS]  = fNum(discGains,  f.discGains,  { fill })
+      dataRow[SC.OTHER_GAINS] = fNum(otherGains, f.otherGains, { fill })
+      dataRow[SC.LOSSES]      = fNum(losses,     f.losses,     { fill })
+      dataRow[SC.NET_BEF]     = fNum(
+        discGains + otherGains + losses,
+        `${addr(SC.DISC_GAINS, r)}+${addr(SC.OTHER_GAINS, r)}+${addr(SC.LOSSES, r)}`,
+        { fill, gain: true },
+      )
+      dataRow[SC.NOTE]        = strCell(discGains + otherGains === 0 ? "Capital loss only" : "", { fill, italic: true, color: C.slate })
 
       rows.push(dataRow)
     }
 
     const tickerEndRow = rowIdx  // last ticker row (1-indexed Excel)
 
-    // FY total row
+    // FY total row — the only place losses are netted and the discount applied
     rowIdx++
     const tr = rowIdx
+    const colRange = (col: number) => `${addr(col, tickerStartRow)}:${addr(col, tickerEndRow)}`
+    const C_tr = addr(SC.DISC_GAINS,  tr)
+    const D_tr = addr(SC.OTHER_GAINS, tr)
+    const E_tr = addr(SC.LOSSES,      tr)
+    const F_tr = addr(SC.NET_BEF,     tr)
+    const G_tr = addr(SC.DISC,        tr)
 
-    const kRange = (col: number) =>
-      `${addr(col, tickerStartRow)}:${addr(col, tickerEndRow)}`
-
-    const fyGains   = fyRows.reduce((s, r) => s + r.gains, 0)
-    const fyLosses  = fyRows.reduce((s, r) => s + r.losses, 0)
-    const fyNet     = fyRows.reduce((s, r) => s + r.gains + r.losses - r.disc, 0)
-    const fyDisc    = fyRows.reduce((s, r) => s + r.disc, 0)
-
-    const C_tr = addr(SC.GAINS,   tr)
-    const D_tr = addr(SC.LOSSES,  tr)
-    const E_tr = addr(SC.NET_BEF, tr)
-    const F_tr = addr(SC.DISC,    tr)
+    const allItems   = fyRows.flatMap((r) => r.items)
+    const year       = netCapitalGain(allItems)
+    const discGains  = sumWhere(allItems, (i) => i.grossGain > 0 && i.discountEligible)
+    const otherGains = sumWhere(allItems, (i) => i.grossGain > 0 && !i.discountEligible)
 
     const totalRow: Cell[] = emptyRow(S_NCOLS, C.lightBlue)
-    totalRow[SC.FY]      = strCell(fy, { bold: true, fill: C.lightBlue })
-    totalRow[SC.TICKER]  = strCell("TOTAL", { bold: true, fill: C.lightBlue })
-    totalRow[SC.GAINS]   = fNum(fyGains,  `SUM(${kRange(SC.GAINS)})`,   { bold: true, fill: C.lightBlue })
-    totalRow[SC.LOSSES]  = fNum(fyLosses, `SUM(${kRange(SC.LOSSES)})`,  { bold: true, fill: C.lightBlue })
-    totalRow[SC.NET_BEF] = fNum(fyGains + fyLosses, `${C_tr}+${D_tr}`, { bold: true, fill: C.lightBlue, gain: true })
-    totalRow[SC.DISC]    = fNum(fyDisc,   `SUM(${kRange(SC.DISC)})`,    { bold: true, fill: C.lightBlue })
-    totalRow[SC.NET_TAX] = fNum(fyNet,    `${E_tr}-${F_tr}`,            { bold: true, fill: C.lightBlue, gain: true })
-    totalRow[SC.NOTE]    = blankCell(C.lightBlue)
+    totalRow[SC.FY]          = strCell(fy, { bold: true, fill: C.lightBlue })
+    totalRow[SC.TICKER]      = strCell("TOTAL", { bold: true, fill: C.lightBlue })
+    totalRow[SC.DISC_GAINS]  = fNum(discGains,        `SUM(${colRange(SC.DISC_GAINS)})`,  { bold: true, fill: C.lightBlue })
+    totalRow[SC.OTHER_GAINS] = fNum(otherGains,       `SUM(${colRange(SC.OTHER_GAINS)})`, { bold: true, fill: C.lightBlue })
+    totalRow[SC.LOSSES]      = fNum(year.grossLosses, `SUM(${colRange(SC.LOSSES)})`,      { bold: true, fill: C.lightBlue })
+    totalRow[SC.NET_BEF]     = fNum(year.netGainBeforeDiscount, `${C_tr}+${D_tr}+${E_tr}`, { bold: true, fill: C.lightBlue, gain: true })
+    totalRow[SC.DISC]        = fNum(
+      year.discountAmount,
+      nettedDiscount(C_tr, D_tr, E_tr, `${DETAIL_SHEET}!${DISC_RATE_REF}`),
+      { bold: true, fill: C.lightBlue },
+    )
+    totalRow[SC.NET_TAX]     = fNum(year.netTaxableGain, `${F_tr}-${G_tr}`, { bold: true, fill: C.lightBlue, gain: true })
+    totalRow[SC.NOTE]        = strCell(
+      year.netTaxableGain < 0 ? "Net capital loss" : year.discountAmount > 0 ? "50% discount on eligible gains left after losses" : "",
+      { fill: C.lightBlue, italic: true, color: C.slate },
+    )
 
     rows.push(totalRow)
     rows.push(emptyRow(S_NCOLS))
@@ -606,11 +615,12 @@ export function buildSummarySheet(
 
   const ws = XLSX.utils.aoa_to_sheet(rows)
 
-  setColWidths(ws, [10, 12, 22, 22, 22, 20, 20, 38])
+  setColWidths(ws, [10, 12, 20, 20, 16, 22, 20, 20, 40])
 
   ws["!merges"] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: S_NCOLS - 1 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: S_NCOLS - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: S_NCOLS - 1 } },
   ]
 
   return ws
@@ -811,7 +821,7 @@ export function exportCapitalGainsXLSX(
   const fyLabel = fyFilter ?? "All Years"
   const wb      = XLSX.utils.book_new()
 
-  XLSX.utils.book_append_sheet(wb, buildSummarySheet(filtered, amitAdjustments, fyLabel), "Summary")
+  XLSX.utils.book_append_sheet(wb, buildSummarySheet(filtered, amitAdjustments, entityType, fyLabel), "Summary")
   XLSX.utils.book_append_sheet(wb, buildDetailSheet(filtered, amitAdjustments, entityType, fyLabel), "Parcel Detail")
   XLSX.utils.book_append_sheet(wb, buildParcelRegisterSheet(parcels, fyLabel), "Parcel Register")
 

@@ -410,6 +410,35 @@ describe("computeFYSummary", () => {
     expect(s.totalGrossGains).toBe(1200)
     expect(s.totalGrossLosses).toBe(-400)
     expect(s.netGainBeforeDiscount).toBe(800)
+    // The short-term loss comes off the gross gain before the discount: (1200 − 400) × 50%
+    expect(s.discountAmount).toBeCloseTo(400)
+    expect(s.netTaxableGain).toBeCloseTo(400)
+  })
+
+  it("nets losses across tickers before the discount", () => {
+    const disposals: Disposal[] = [
+      {
+        id: "d1", ticker: "ABC", date: "2025-03-01", units: 10, unitPrice: 30,
+        brokerage: 0, proceeds: 300, method: "fifo",
+        parcelsUsed: [{
+          parcelId: "p1", units: 10, costBase: 200, acquisitionDate: "2020-01-01",
+          discountEligible: true, grossGain: 100, discountedGain: 50,
+        }],
+      },
+      {
+        id: "d2", ticker: "XYZ", date: "2025-04-01", units: 10, unitPrice: 6,
+        brokerage: 0, proceeds: 60, method: "fifo",
+        parcelsUsed: [{
+          parcelId: "p2", units: 10, costBase: 100, acquisitionDate: "2024-12-01",
+          discountEligible: false, grossGain: -40, discountedGain: -40,
+        }],
+      },
+    ]
+
+    const [s] = computeFYSummary(disposals)
+    // ABC's $100 discountable gain less XYZ's $40 loss, then halved — not 50 − 40 = 10
+    expect(s.netTaxableGain).toBeCloseTo(30)
+    expect(s.rows.map((r) => r.netGainBeforeDiscount)).toEqual([100, -40])
   })
 })
 
