@@ -27,7 +27,7 @@ export function TradesPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ parcel: Parcel; affectedDisposals: Disposal[] } | null>(null)
   const [csvError, setCSVError] = useState("")
   const [csvSuccess, setCSVSuccess] = useState("")
-  const [csvMethod, setCSVMethod] = useState<"fifo" | "lifo" | "optimised">("fifo")
+  const [csvMethod, setCSVMethod] = useState<"fifo" | "lifo" | "optimised">("optimised")
 
   type TradeResult =
     | { status: "ok";    type: "buy";  ticker: string; date: string; units: number; unitPrice: number; brokerage: number; amount: number }
