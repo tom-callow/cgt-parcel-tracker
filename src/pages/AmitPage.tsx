@@ -30,14 +30,13 @@ export function AmitPage() {
   const sorted = [...amitAdjustments].sort(
     (a, b) => a.ticker.localeCompare(b.ticker) || a.date.localeCompare(b.date)
   )
-  const groups: { ticker: string; rows: AmitAdjustment[]; net: number }[] = []
+  const groups: { ticker: string; rows: AmitAdjustment[] }[] = []
   for (const a of sorted) {
     const last = groups[groups.length - 1]
     if (last?.ticker === a.ticker) {
       last.rows.push(a)
-      last.net += a.totalAdjustment
     } else {
-      groups.push({ ticker: a.ticker, rows: [a], net: a.totalAdjustment })
+      groups.push({ ticker: a.ticker, rows: [a] })
     }
   }
 
@@ -204,15 +203,10 @@ export function AmitPage() {
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            {groups.map(({ ticker, rows, net }) => (
+            {groups.map(({ ticker, rows }) => (
               <tbody key={ticker} className="divide-y divide-slate-100 dark:divide-slate-700 border-t border-slate-200 dark:border-slate-600">
                 <tr className="bg-slate-50/60 dark:bg-slate-700/40">
-                  <td colSpan={2} className="px-4 py-2 font-semibold text-slate-800 dark:text-slate-100">{ticker}</td>
-                  <td className="px-4 py-2 text-right font-semibold text-slate-800 dark:text-slate-100">
-                    <span className="text-xs font-normal text-slate-500 dark:text-slate-400 mr-2">Net</span>
-                    {signedDollars(net, 2)}
-                  </td>
-                  <td colSpan={2}></td>
+                  <td colSpan={5} className="px-4 py-2 font-semibold text-slate-800 dark:text-slate-100">{ticker}</td>
                 </tr>
                 {rows.map((a) => {
                   const perUnit = a.unitsAtDate > 0 ? a.totalAdjustment / a.unitsAtDate : 0
