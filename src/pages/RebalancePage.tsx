@@ -4,14 +4,67 @@ import { useAppState } from "../lib/AppContext"
 import { useLivePrices } from "../lib/useLivePrices"
 import { fmt, fmtPct } from "../lib/formatters"
 import { planContribution, type Contribution } from "../lib/rebalance"
+import { fetchPrices } from "../lib/marketData"
 
 const fmtPp = (n: number) =>
   `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pp`
+
+// Adds a ticker you don't hold yet, after checking it has an ASX price
+function AddTickerForm({ existing, onAdd }: { existing: string[]; onAdd: (ticker: string, price: number) => void }) {
+  const [value, setValue] = useState("")
+  const [checking, setChecking] = useState(false)
+  const [error, setError] = useState("")
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const ticker = value.trim().toUpperCase().replace(/\.AX$/, "")
+    if (!ticker) return
+    if (existing.includes(ticker)) {
+      setError(`${ticker} is already in the table.`)
+      return
+    }
+    setError("")
+    setChecking(true)
+    const price = (await fetchPrices([ticker]))[ticker]
+    setChecking(false)
+    if (price == null) {
+      setError(`Couldn't find an ASX price for ${ticker}. Check the ticker and try again.`)
+      return
+    }
+    onAdd(ticker, price)
+    setValue("")
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <label htmlFor="add-ticker" className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+        Add a ticker you don't hold yet
+      </label>
+      <input
+        id="add-ticker"
+        value={value}
+        onChange={(e) => { setValue(e.target.value); setError("") }}
+        placeholder="e.g. ABC"
+        className="w-28 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded text-sm uppercase bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:normal-case placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500"
+      />
+      <button
+        type="submit"
+        disabled={checking || !value.trim()}
+        className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded text-sm font-medium hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50"
+      >
+        {checking ? "Checking..." : "Add"}
+      </button>
+      {error && <p className="w-full text-sm text-red-600 dark:text-red-400">{error}</p>}
+    </form>
+  )
+}
 
 export function RebalancePage() {
   const { parcels, rebalanceTargets, setRebalanceTargets } = useAppState()
   const [investmentAmount, setInvestmentAmount] = useState("")
   const [draftTargets, setDraftTargets] = useState<Record<string, string>>({})
+  // Prices looked up when adding a ticker, until the next full refresh includes it
+  const [addedPrices, setAddedPrices] = useState<Record<string, number>>({})
 
   const holdings = (() => {
     const byTicker = new Map<string, { units: number; costBase: number }>()
@@ -22,13 +75,18 @@ export function RebalancePage() {
       entry.costBase += (p.costBase / p.units) * p.unitsRemaining
       byTicker.set(p.ticker, entry)
     }
+    // Tickers with a target but no units are planned investments (or holdings since sold off)
+    for (const t of Object.keys(rebalanceTargets)) {
+      if (!byTicker.has(t)) byTicker.set(t, { units: 0, costBase: 0 })
+    }
     return [...byTicker.entries()]
       .map(([ticker, d]) => ({ ticker, units: d.units }))
       .sort((a, b) => a.ticker.localeCompare(b.ticker))
   })()
 
   const tickers = holdings.map((h) => h.ticker)
-  const { prices, loading, lastUpdated, refresh: refreshPrices } = useLivePrices(tickers)
+  const { prices: livePrices, loading, lastUpdated, refresh: refreshPrices } = useLivePrices(tickers)
+  const prices: Record<string, number | null> = { ...addedPrices, ...livePrices }
 
   // Inputs show the saved target unless mid-edit — draftTargets only holds in-progress edits,
   // so changes from elsewhere (e.g. undo) show up without any syncing
@@ -73,6 +131,22 @@ export function RebalancePage() {
     }
   }
 
+  function handleAddTicker(ticker: string, price: number) {
+    setAddedPrices((prev) => ({ ...prev, [ticker]: price }))
+    setRebalanceTargets({ ...rebalanceTargets, [ticker]: 0 })
+  }
+
+  function handleRemoveTicker(ticker: string) {
+    const next = { ...rebalanceTargets }
+    delete next[ticker]
+    setRebalanceTargets(next)
+    setDraftTargets((prev) => {
+      const nextDrafts = { ...prev }
+      delete nextDrafts[ticker]
+      return nextDrafts
+    })
+  }
+
   function handleTargetBlur(ticker: string) {
     const parsed = parseFloat(targetText(ticker))
     if (!isNaN(parsed) && parsed >= 0 && parsed <= 100) {
@@ -90,8 +164,11 @@ export function RebalancePage() {
     return (
       <div>
         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6">Rebalancing</h1>
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-400">
-          No holdings yet. Add buy trades to use the rebalancer.
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-400 mb-4">
+          No holdings yet. Add buy trades, or add a ticker you plan to invest in.
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
+          <AddTickerForm existing={tickers} onAdd={handleAddTicker} />
         </div>
       </div>
     )
@@ -169,7 +246,22 @@ export function RebalancePage() {
 
               return (
                 <tr key={h.ticker} className="hover:bg-slate-50 dark:hover:bg-slate-700">
-                  <td className="px-4 py-2.5 font-medium dark:text-slate-100">{h.ticker}</td>
+                  <td className="px-4 py-2.5 font-medium dark:text-slate-100">
+                    {h.ticker}
+                    {h.units === 0 && (
+                      <>
+                        <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">Not held</span>
+                        <button
+                          onClick={() => handleRemoveTicker(h.ticker)}
+                          aria-label={`Remove ${h.ticker}`}
+                          title={`Remove ${h.ticker}`}
+                          className="ml-2 px-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                        >
+                          ×
+                        </button>
+                      </>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 text-right dark:text-slate-300">
                     {loading ? (
                       <span className="text-slate-300 dark:text-slate-600">—</span>
@@ -251,6 +343,10 @@ export function RebalancePage() {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4 mb-4">
+        <AddTickerForm existing={tickers} onAdd={handleAddTicker} />
       </div>
 
       {/* Target sum warning */}

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useAppState } from "../lib/AppContext"
 import { useLivePrices } from "../lib/useLivePrices"
-import { planHoldingSale, planWithdrawal, type WithdrawalPlan } from "../lib/withdrawal"
+import { heldTargets, planHoldingSale, planWithdrawal, type WithdrawalPlan } from "../lib/withdrawal"
 import { fmt, fmtPct, uniqueTickers } from "../lib/formatters"
 import { fmtDate } from "../lib/cgt"
 
@@ -161,8 +161,8 @@ export function SalePlanner() {
     setAmount(String(unitsHeld))
   }
 
-  const targetSum = tickers.reduce((s, t) => s + (rebalanceTargets[t] ?? 0), 0)
-  const targetsSet = tickers.length > 0 && tickers.every((t) => rebalanceTargets[t] != null) && Math.abs(targetSum - 100) < 0.01
+  const targets = heldTargets(rebalanceTargets, tickers)
+  const targetsSet = targets != null
   const missingPrices = tickers.filter((t) => prices[t] == null)
 
   const amt = parseFloat(amount.replace(/,/g, ""))
@@ -171,7 +171,7 @@ export function SalePlanner() {
   const base = {
     parcels: held,
     prices: prices as Record<string, number>,
-    targets: targetsSet ? rebalanceTargets : null,
+    targets,
     brokeragePerTrade: brok,
     fractional,
     date,

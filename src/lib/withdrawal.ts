@@ -65,6 +65,19 @@ export type WithdrawalInput = {
   amitAdjustments: AmitAdjustment[]
 }
 
+// Targets to plan sales against. Targets can include tickers not yet held (planned new
+// investments); a sale can't buy those, so they're dropped and the held tickers' targets are
+// scaled back up to 100% in proportion. Returns null unless every held ticker has a target,
+// all targets add up to 100%, and the held ones add up to more than zero.
+export function heldTargets(targets: Record<string, number>, heldTickers: string[]): Record<string, number> | null {
+  if (heldTickers.length === 0 || !heldTickers.every((t) => targets[t] != null)) return null
+  const allSum = Object.values(targets).reduce((s, v) => s + v, 0)
+  if (Math.abs(allSum - 100) >= 0.01) return null
+  const heldSum = heldTickers.reduce((s, t) => s + targets[t], 0)
+  if (heldSum <= 0) return null
+  return Object.fromEntries(heldTickers.map((t) => [t, (targets[t] / heldSum) * 100]))
+}
+
 type Slice = {
   parcel: Parcel
   costPerUnit: number

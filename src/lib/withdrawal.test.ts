@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { planHoldingSale, planWithdrawal, type WithdrawalInput } from "./withdrawal"
+import { heldTargets, planHoldingSale, planWithdrawal, type WithdrawalInput } from "./withdrawal"
 import { computeCostBase } from "./cgt"
 import type { Parcel } from "./types"
 
@@ -150,5 +150,30 @@ describe("planHoldingSale", () => {
   it("rejects selling more than is held", () => {
     expect(() => planHoldingSale({ ...base, sell: { units: 201 } })).toThrow(/only hold 200/)
     expect(() => planHoldingSale({ ...base, sell: { cash: 25000 } })).toThrow(/more than your ABC holding/)
+  })
+})
+
+describe("heldTargets", () => {
+  it("returns held targets unchanged when they already add up to 100%", () => {
+    expect(heldTargets({ ABC: 40, XYZ: 60 }, ["ABC", "XYZ"])).toEqual({ ABC: 40, XYZ: 60 })
+  })
+
+  it("drops tickers not held and scales the rest back up to 100%", () => {
+    const t = heldTargets({ ABC: 30, XYZ: 50, NEW: 20 }, ["ABC", "XYZ"])!
+    expect(t.ABC).toBeCloseTo(37.5)
+    expect(t.XYZ).toBeCloseTo(62.5)
+    expect(t.NEW).toBeUndefined()
+  })
+
+  it("is null when a held ticker has no target", () => {
+    expect(heldTargets({ ABC: 100 }, ["ABC", "XYZ"])).toBeNull()
+  })
+
+  it("is null when all targets don't add up to 100%", () => {
+    expect(heldTargets({ ABC: 30, XYZ: 50, NEW: 10 }, ["ABC", "XYZ"])).toBeNull()
+  })
+
+  it("is null when every held ticker targets 0%", () => {
+    expect(heldTargets({ ABC: 0, NEW: 100 }, ["ABC"])).toBeNull()
   })
 })
