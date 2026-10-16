@@ -3,6 +3,7 @@ import { useAppState } from "../lib/AppContext"
 import { createParcel, executeDisposal, executeManualDisposal, parseImportCSV, splitNewTrades, fmtDate, type CSVImport } from "../lib/cgt"
 import type { Parcel, Disposal } from "../lib/types"
 import { fmt, byDate, uniqueTickers } from "../lib/formatters"
+import { TickerInput } from "../components/TickerInput"
 
 export function TradesPage() {
   const state = useAppState()
@@ -43,6 +44,7 @@ export function TradesPage() {
   const [csvPreview, setCSVPreview] = useState<CSVPreview | null>(null)
 
   const tickers = uniqueTickers(state.parcels)
+  const heldTickers = uniqueTickers(state.parcels.filter((p) => p.unitsRemaining > 0))
 
   const displayed = state.parcels
     .filter((p) => !filter || p.ticker === filter)
@@ -453,8 +455,10 @@ export function TradesPage() {
             )}
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ticker</label>
-              <input value={formTicker} onChange={(e) => { setFormTicker(e.target.value); setManualAllocations({}) }}
-                className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100" placeholder="VAS" />
+              {/* Suggests current holdings; any other ticker can still be typed */}
+              <TickerInput value={formTicker} onChange={(v) => { setFormTicker(v); setManualAllocations({}) }}
+                options={heldTickers} placeholder="Pick or type"
+                className="w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 dark:text-slate-100" />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">

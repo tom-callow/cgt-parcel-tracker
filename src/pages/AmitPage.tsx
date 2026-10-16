@@ -4,6 +4,7 @@ import { useAppState } from "../lib/AppContext"
 import { getFinancialYear } from "../lib/cgt"
 import type { AmitAdjustment } from "../lib/types"
 import { fmt, uniqueTickers } from "../lib/formatters"
+import { TickerInput } from "../components/TickerInput"
 
 const inputCls = "w-full border border-slate-300 dark:border-slate-600 rounded px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
 const labelCls = "block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1"
@@ -127,18 +128,7 @@ export function AmitPage() {
           <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <label className={labelCls}>Ticker</label>
-              <input
-                list="amit-tickers"
-                value={formTicker}
-                onChange={(e) => setFormTicker(e.target.value)}
-                className={inputCls}
-                placeholder="e.g. VAS"
-              />
-              <datalist id="amit-tickers">
-                {tickers.map((t) => (
-                  <option key={t} value={t} />
-                ))}
-              </datalist>
+              <TickerInput value={formTicker} onChange={setFormTicker} options={tickers} placeholder="Pick or type" className={inputCls} />
             </div>
             <div>
               <label className={labelCls}>Year</label>
